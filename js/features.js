@@ -77,15 +77,15 @@ if($f('#scanInput')) $f('#scanInput').addEventListener('keydown', e=>{ if(e.key=
 var solUsd = 210;
 
 const TYPE_LABEL = {list:'listed', bid:'bid', sell:'sold', buy:'bought'};
-function fmtSol(l){ return l!=null ? (l/1e9).toFixed(2)+' SOL' : '—'; }
+const fmtSol = (l)=> l!=null ? (l/1e9).toFixed(2)+' SOL' : '—';
 function esc2(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtUsd2(n){ if(n==null||isNaN(n))return '—'; if(n>=1e6)return '$'+(n/1e6).toFixed(1)+'M'; if(n>=1e3)return '$'+(n/1e3).toFixed(1)+'K'; return '$'+Number(n).toFixed(0); }
-function ago(ts){ if(!ts)return''; const s=Date.now()/1000-ts; if(s<60)return Math.floor(Math.max(1,s))+'s'; if(s<3600)return Math.floor(s/60)+'m'; return Math.floor(s/3600)+'h'; }
-function fpChgTxt(v){
+const ago = (ts)=>{ if(!ts)return''; const s=Date.now()/1000-ts; if(s<60)return Math.floor(Math.max(1,s))+'s'; if(s<3600)return Math.floor(s/60)+'m'; return Math.floor(s/3600)+'h'; };
+const fpChgTxt = (v)=>{
   if(v==null) return '<span class="muted">—</span>';
   const pct = Number(v*100);
   return `<span class="${pct>=0?'green':'red'}">${pct>=0?'+':''}${pct.toFixed(1)}%</span>`;
-}
+};
 
 async function loadNft(){
   try{
