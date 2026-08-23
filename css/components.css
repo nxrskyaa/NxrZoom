@@ -155,6 +155,35 @@
 .buyrow-inline{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tg-note{font-size:10px;margin-top:10px}
 
+/* ===== nft tracker ===== */
+.subhead{font-size:12px;font-weight:600;text-transform:lowercase;margin:18px 0 10px}
+.pad{padding:14px 0}
+.nftgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.nftcard{
+  display:flex;flex-direction:column;gap:8px;
+  background:#faf8f1;border:1px solid var(--line);
+  padding:10px;transition:border-color .15s ease;
+}
+.nftcard:hover{border-color:var(--black)}
+.nftcard img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:2px;background:var(--line)}
+.nftc-info{display:flex;flex-direction:column;gap:2px}
+.nftc-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nftc-floor{font-size:11px}
+.nftc-vol{font-size:10px;color:var(--muted)}
+.nftfeed{border-top:1px solid var(--line)}
+.nftitem{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 4px;border-bottom:1px solid var(--line-soft);
+}
+.nftitem.sweep{background:#f5f2e7}
+.sweep-tag{
+  background:var(--black);color:var(--paper);
+  font-size:9px;font-weight:600;padding:2px 6px;border-radius:2px;
+  letter-spacing:.05em;margin-right:4px;
+}
+.monoaddr{font-family:'IBM Plex Mono',monospace}
+.holder-row{grid-template-columns:minmax(140px,2fr) repeat(3,minmax(64px,.9fr))!important}
+
 /* ===== footer ===== */
 .footer{border-top:1px solid var(--line);margin-top:56px}
 .foot-inner{display:flex;align-items:center;gap:14px;padding:22px 20px}

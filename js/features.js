@@ -1,237 +1,140 @@
-// nxrzoom_ — scan + smart money alerts (client-side, no backend)
+// nxrzoom_ — scan (token CA) + nft tracker
+const $f = (s) => document.querySelector(s);
 
-// ===== SCAN WALLET =====
-const RPC = 'https://api.mainnet-beta.solana.com';
-
-async function rpc(method, params){
-  const r = await fetch(RPC, {
-    method:'POST',
-    headers:{'content-type':'application/json'},
-    body: JSON.stringify({jsonrpc:'2.0', id:1, method, params})
-  });
-  if(!r.ok) throw new Error('rpc http '+r.status);
-  const j = await r.json();
-  if(j.error) throw new Error(j.error.message);
-  return j.result;
-}
-
-function isSolAddr(a){ return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a.trim()); }
-function short(a){ return a.slice(0,4)+'…'+a.slice(-4); }
-
-async function scanWallet(addr){
-  // balance
-  let sol = 0;
-  try{
-    const bal = await rpc('getBalance', [addr]);
-    sol = bal.value / 1e9;
-  }catch(e){ /* keep 0 */ }
-
-  // token accounts (holdings)
-  const holdings = [];
-  try{
-    const ta = await rpc('getTokenAccountsByOwner', [
-      addr,
-      {programId:'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'},
-      {encoding:'jsonParsed'}
-    ]);
-    for(const acc of (ta.value||[])){
-      try{
-        const info = acc.account.data.parsed.info;
-        const amt = info.tokenAmount;
-        if(!amt || Number(amt.uiAmount||0) <= 0) continue;
-        const mint = info.mint;
-        // lookup price/metadata via dexscreener
-        let meta = null;
-        try{
-          const ds = await fetch('https://api.dexscreener.com/tokens/v1/solana/'+mint).then(r=>r.json());
-          if(Array.isArray(ds) && ds.length){
-            const best = ds.sort((a,b)=>((b.liquidity&&b.liquidity.usd)||0)-((a.liquidity&&a.liquidity.usd)||0))[0];
-            meta = best;
-          }
-        }catch(e){}
-        const uiAmt = Number(amt.uiAmount);
-        const price = meta ? Number(meta.priceUsd) : null;
-        holdings.push({
-          mint,
-          amount: uiAmt,
-          symbol: meta ? meta.baseToken.symbol : null,
-          name: meta ? meta.baseToken.name : null,
-          usd: price != null ? uiAmt*price : null,
-          liq: meta && meta.liquidity ? meta.liquidity.usd : null,
-          chg24: meta && meta.priceChange ? meta.priceChange.h24 : null,
-          url: meta ? meta.url : `https://dexscreener.com/solana/${mint}`
-        });
-      }catch(e){}
-    }
-  }catch(e){}
-
-  // recent activity signature count
-  let sigCount = 0;
-  try{
-    const sigs = await rpc('getSignaturesForAddress', [addr, {limit: 20}]);
-    sigCount = (sigs||[]).length;
-  }catch(e){}
-
-  return { addr, sol, holdings: holdings.sort((a,b)=>(b.usd||0)-(a.usd||0)), sigCount };
-}
+// ===== SCAN TOKEN =====
+function isSolAddr(a){ return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test((a||'').trim()); }
+function short(a){ return a ? a.slice(0,4)+'…'+a.slice(-4) : ''; }
 
 async function doScan(){
-  const input = $('#scanInput');
-  const out = $('#scanResult');
-  const addr = (input.value||'').trim();
-  if(!isSolAddr(addr)){
+  const input = $f('#scanInput');
+  const out = $f('#scanResult');
+  const ca = (input.value||'').trim();
+  if(!isSolAddr(ca)){
     out.hidden = false;
-    out.innerHTML = `<p class="scan-err">address gak valid — paste solana wallet address yang bener.</p>`;
+    out.innerHTML = `<p class="scan-err">CA gak valid — paste solana contract address yang bener.</p>`;
     return;
   }
   out.hidden = false;
-  out.innerHTML = `<p class="muted">scanning ${short(addr)} …</p>`;
-  $('#scanGo').disabled = true;
+  out.innerHTML = `<p class="muted pad">scanning ${short(ca)} …</p>`;
+  $f('#scanGo').disabled = true;
   try{
-    const res = await scanWallet(addr);
-    renderScan(res);
+    const r = await fetch('/api/scan?ca='+encodeURIComponent(ca));
+    const d = await r.json();
+    if(!r.ok || d.error) throw new Error(d.error||'fail');
+    renderScan(d);
   }catch(e){
-    out.innerHTML = `<p class="scan-err">gagal scan — RPC rate limit. coba lagi 10 detik.</p>`;
+    out.innerHTML = `<p class="scan-err">scan gagal — coba lagi sebentar.</p>`;
   }finally{
-    $('#scanGo').disabled = false;
+    $f('#scanGo').disabled = false;
   }
 }
 
-function renderScan({addr, sol, holdings, sigCount}){
-  const totalUsd = holdings.reduce((s,h)=>s+(h.usd||0),0);
-  const rows = holdings.slice(0,15).map(h=>`
-    <a class="trow" href="${h.url}" target="_blank" rel="noopener">
-      <span><span class="tt-name">${esc(h.symbol||'unknown')}</span><span class="tt-sym">${short(h.mint)}</span></span>
-      <span class="tc-created">${h.amount<1?h.amount.toPrecision(3):h.amount.toLocaleString('en-US',{maximumFractionDigits:0})}</span>
-      <span class="num">${h.usd!=null?'<span class="green">'+fmtUsd(h.usd)+'</span>':'<span class="muted">—</span>'}</span>
-      <span class="num h6c">${h.liq!=null?fmtUsd(h.liq):'—'}</span>
-      <span class="num">${h.chg24!=null?`<span class="${h.chg24>=0?'green':'red'}">${h.chg24>=0?'+':''}${Number(h.chg24).toFixed(1)}%</span>`:'—'}</span>
-    </a>`).join('');
+function renderScan(d){
+  const chg = d.chg && d.chg.h24!=null ? `<span class="${d.chg.h24>=0?'green':'red'}">${d.chg.h24>=0?'+':''}${Number(d.chg.h24).toFixed(1)}% 24h</span>` : '';
+  const holderRows = (d.holders||[]).slice(0,10).map((h,i)=>`
+    <div class="trow holder-row">
+      <span><span class="tt-name">${String(i+1).padStart(2,'0')}</span> <span class="tc-created monoaddr">${h.short}</span></span>
+      <span class="num">${h.uiAmount.toLocaleString('en-US',{maximumFractionDigits:0})}</span>
+      <span class="num h6c">${h.pctOfSupply!=null?h.pctOfSupply.toFixed(2)+'%':'—'}</span>
+      <span class="num"><a class="buyl" target="_blank" rel="noopener" href="https://solscan.io/account/${h.address}">solscan</a></span>
+    </div>`).join('');
 
-  const score = Math.min(9,
-    Math.floor(totalUsd/10000) +
-    Math.floor(sol/10) +
-    Math.min(2, Math.floor(sigCount/10))
-  );
-
-  $('#scanResult').innerHTML = `
+  $f('#scanResult').innerHTML = `
     <div class="scanhead">
       <div>
-        <div class="sig-name">${short(addr)}</div>
-        <div class="tc-created">${sigCount} recent tx · ${sol.toFixed(3)} SOL</div>
+        <div class="sig-name">${esc2(d.symbol||'unknown')} <span class="sig-handle">${esc2(d.name||'')}</span></div>
+        <div class="tc-created monoaddr">${short(d.ca)}</div>
+        ${chg}
       </div>
       <div style="text-align:right">
-        <div class="call-x">${fmtUsd(totalUsd)}</div>
-        <div class="sig-foll">est. token value</div>
+        <div class="call-x">${d.priceUsd?'$'+Number(d.priceUsd).toPrecision(4):'—'}</div>
+        <div class="sig-foll">mcap ${fmtUsd2(d.mcap)} · liq ${fmtUsd2(d.liq)} · vol24 ${fmtUsd2(d.vol24)}</div>
       </div>
     </div>
-    ${rows ? `<div class="panel scanpanel">
-      <div class="thead"><span class="tc-token">token</span><span class="tc-created">amount</span><span class="num">value</span><span class="num h6c">liq</span><span class="num">24h</span></div>
-      <div>${rows}</div>
-    </div>` : `<p class="muted" style="padding:14px 0">no priced tokens found — mungkin semua di SOL / token gabutu harga.</p>`}
+
+    <div class="call-links" style="margin:12px 0">
+      <a class="buyl hot" href="${d.buyLinks.axiom}" target="_blank" rel="noopener">axiom</a>
+      <a class="buyl" href="${d.buyLinks.gmgn}" target="_blank" rel="noopener">gmgn</a>
+      <a class="buyl" href="${d.buyLinks.trojan}" target="_blank" rel="noopener">trojan</a>
+      <a class="buyl" href="${d.buyLinks.pumpfun}" target="_blank" rel="noopener">pump.fun</a>
+      <a class="buyl" href="${d.dsUrl}" target="_blank" rel="noopener">dexscreener</a>
+      <a class="buyl" href="https://solscan.io/token/${d.ca}" target="_blank" rel="noopener">solscan</a>
+    </div>
+
+    ${holderRows?`
+    <h3 class="subhead muted">top holders${d.supply?` <span class="tc-created">· supply ${Number(d.supply).toLocaleString('en-US',{maximumFractionDigits:0})}</span>`:''}</h3>
+    <div class="panel scanpanel">
+      <div class="thead"><span class="tc-token">rank / wallet</span><span class="num">balance</span><span class="num h6c">% supply</span><span class="num">link</span></div>
+      <div>${holderRows}</div>
+    </div>`:'<p class="muted pad">holder data unavailable — token mungkin terlalu baru atau rpc sibuk.</p>'}
   `;
 }
 
-$('#scanGo').addEventListener('click', doScan);
-$('#scanInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doScan(); });
+$f('#scanGo').addEventListener('click', doScan);
+$f('#scanInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doScan(); });
 
-// ===== SMART MONEY ALERTS =====
-const seenMints = new Set(JSON.parse(localStorage.getItem('nxz_seen')||'[]'));
-let alertPrefs = JSON.parse(localStorage.getItem('nxz_alerts')||'null') || {enabled:false, minBuys:50, minChg:100};
-let newAlerts = [];
+// ===== NFT TRACKER =====
+let solUsd = 210;
 
-// browser notification permission on first toggle
-async function askNotifPerm(){
-  if(!('Notification' in window)) return;
-  if(Notification.permission === 'default'){ try{ await Notification.requestPermission(); }catch(e){} }
+function fmtSol(lamports){
+  return lamports!=null ? (lamports/1e9).toFixed(3)+' SOL' : '—';
 }
+function fmtEthStyle(sol){ return solUsd ? `($${Math.round(sol*solUsd)})` : ''; }
+function esc2(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtUsd2(n){ if(n==null||isNaN(n))return '—'; if(n>=1e6)return '$'+(n/1e6).toFixed(1)+'M'; if(n>=1e3)return '$'+(n/1e3).toFixed(1)+'K'; return '$'+Number(n).toFixed(0); }
+function ago(ts){ if(!ts)return''; const s=Date.now()/1000-ts; if(s<60)return Math.floor(s)+'s'; if(s<3600)return Math.floor(s/60)+'m'; return Math.floor(s/3600)+'h'; }
 
-function notify(p){
-  if(!('Notification' in window) || Notification.permission!=='granted') return;
+async function loadNft(){
   try{
-    new Notification('$'+p.baseToken.symbol+' moving', {
-      body:`+${Number(p.priceChange.h24).toFixed(0)}% 24h · ${p.txns.h24.buys} buys · vol ${fmtUsd(p.volume&&p.volume.h24)}`,
-      tag: p.baseToken.address
-    });
-  }catch(e){}
-}
+    const r = await fetch('/api/nft');
+    const d = await r.json();
+    if(!r.ok) throw new Error();
+    solUsd = d.solUsd || 210;
 
-function checkAlerts(pairs){
-  if(!alertPrefs.enabled) return;
-  newAlerts = pairs.filter(p =>
-    p.priceChange && p.priceChange.h24 != null &&
-    p.priceChange.h24 >= alertPrefs.minChg &&
-    p.txns && p.txns.h24 &&
-    p.txns.h24.buys >= alertPrefs.minBuys
-  );
-  const badge = $('#alertBadge');
-  if(badge){
-    badge.hidden = newAlerts.length===0;
-    badge.textContent = String(newAlerts.length);
+    // collections grid
+    $f('#nftGrid').innerHTML = (d.collections||[]).slice(0,8).map(c=>{
+      const fpChg = c.fpChange24h!=null ? `<span class="${c.fpChange24h>=0?'green':'red'}">${c.fpChange24h>=0?'+':''}${Number(c.fpChange24h*100).toFixed(1)}%</span>` : '<span class="muted">—</span>';
+      return `
+      <a class="nftcard" href="https://magiceden.io/collections/solana/${c.symbol}" target="_blank" rel="noopener">
+        <img src="${esc2(c.image||'')}" alt="" loading="lazy" onerror="this.style.display='none'">
+        <div class="nftc-info">
+          <span class="nftc-name">${esc2(c.name)}</span>
+          <span class="nftc-floor">FP ${fmtSol(c.floor)} · ${fpChg}</span>
+          <span class="nftc-vol">vol24 ${fmtUsd2((c.vol24hr||0)*solUsd)} · ${c.listedCount??'—'} listed</span>
+        </div>
+      </a>`;
+    }).join('');
+
+    // activity feed — group by signature to detect sweeps
+    const bySig = {};
+    for(const a of (d.activities||[])){
+      if(a.type!=='sell'&&a.type!=='buy') continue;
+      (bySig[a.signature] = bySig[a.signature]||{count:0,total:0,collection:a.collectionSymbol,sig:a.signature,blockTime:a.blockTime,buyer:a.buyer,seller:a.seller});
+      bySig[a.signature].count++;
+      bySig[a.signature].total += Number(a.price||0);
+    }
+    const events = Object.values(bySig)
+      .sort((a,b)=>(b.blockTime||0)-(a.blockTime||0))
+      .slice(0,12);
+
+    $f('#nftFeed').innerHTML = events.length ? events.map(e=>{
+      const isSweep = e.count >= 3;
+      return `
+      <li class="nftitem${isSweep?' sweep':''}">
+        <div>
+          <div>${isSweep?'<span class="sweep-tag">SWEEP</span> ':''}<span class="ftoken">${e.count}x sale${e.count>1?'s':''}</span> <span class="fmcap">${esc2(e.collection)}</span></div>
+          <div class="sig-desc">${e.total.toFixed(2)} SOL ${fmtEthStyle(e.total)} · by ${short(e.seller||e.buyer)} · ${ago(e.blockTime)} ago</div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+          <a class="buyl" href="https://magiceden.io/collections/solana/${e.collection}" target="_blank" rel="noopener">collection</a>
+          <a class="buyl" href="https://solscan.io/tx/${e.sig}" target="_blank" rel="noopener">tx</a>
+        </div>
+      </li>`;
+    }).join('') : '<li class="muted pad">no recent marketplace sales — quiet market.</li>';
+  }catch(e){
+    $f('#nftGrid').innerHTML = '<p class="muted pad">gagal load — refresh page.</p>';
   }
-  if(newAlerts.length) notify(newAlerts[0]);
 }
 
-function renderAlertPanel(){
-  const panel = $('#alertPanel');
-  if(!panel) return;
-  panel.innerHTML = `
-    <div class="alertrow">
-      <label class="switch">
-        <input type="checkbox" id="alertOn" ${alertPrefs.enabled?'checked':''}>
-        <span>smart money alerts</span>
-      </label>
-      <div class="alertcfg">
-        <label>min buys 24h <input type="number" id="alertMinBuys" value="${alertPrefs.minBuys}" min="0"></label>
-        <label>min gain % <input type="number" id="alertMinChg" value="${alertPrefs.minChg}" min="0"></label>
-      </div>
-    </div>
-    <div class="alertlist">
-      ${newAlerts.length ? newAlerts.map(p=>{
-        const links = buyLinks(p.baseToken.address, p.url)
-          .map(l=>`<a class="buyl${l.hot?' hot':''}" href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join('');
-        return `<div class="alertitem">
-          <div>
-            <div><span class="ftoken">$${esc(p.baseToken.symbol)}</span> <span class="fmcap">${fmtUsd(mcapOf(p))}</span></div>
-            <div class="sig-desc"><span class="green">+${Number(p.priceChange.h24).toFixed(0)}%</span> · ${p.txns.h24.buys} buys · ${fmtUsd(p.volume&&p.volume.h24)} vol</div>
-          </div>
-          <div class="buyrow-inline">${links}</div>
-        </div>`;
-      }).join('') : `<p class="muted">belum ada alert — aktifin switch &amp; tunggu token yang lolos filter.</p>`}
-    </div>
-    <p class="tg-note muted">mau push ke HP? connect telegram bot nanti di banner bawah.</p>
-  `;
-
-  panel.querySelector('#alertOn').addEventListener('change', async (e)=>{
-    alertPrefs.enabled = e.target.checked;
-    localStorage.setItem('nxz_alerts', JSON.stringify(alertPrefs));
-    if(alertPrefs.enabled) await askNotifPerm();
-    checkAlerts(window.__PAIRS__||[]);
-  });
-  panel.querySelector('#alertMinBuys').addEventListener('change', e=>{
-    alertPrefs.minBuys = parseInt(e.target.value)||0;
-    localStorage.setItem('nxz_alerts', JSON.stringify(alertPrefs));
-    checkAlerts(window.__PAIRS__||[]);
-  });
-  panel.querySelector('#alertMinChg').addEventListener('change', e=>{
-    alertPrefs.minChg = parseInt(e.target.value)||0;
-    localStorage.setItem('nxz_alerts', JSON.stringify(alertPrefs));
-    checkAlerts(window.__PAIRS__||[]);
-  });
-}
-
-// dropdown toggle
-$('#alertBtn').addEventListener('click', ()=>{
-  const dd = $('#alertDropdown');
-  const open = !dd.hidden;
-  dd.hidden = open;
-  if(!open){ renderAlertPanel(); $('#alertBadge').hidden = true; }
-});
-document.addEventListener('click', e=>{
-  const dd = $('#alertDropdown'), btn = $('#alertBtn');
-  if(dd && !dd.hidden && !e.target.closest('#alertDropdown') && !e.target.closest('#alertBtn')) dd.hidden = true;
-});
-
-// hook into refresh loop
-const _origRefreshDone = () => {};
-setInterval(()=>checkAlerts(window.__PAIRS__||[]), 30000);
+loadNft();
+setInterval(loadNft, 60000);

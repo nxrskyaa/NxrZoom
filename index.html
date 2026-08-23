@@ -18,6 +18,7 @@
     <a href="#feed">feed</a>
     <a href="#trending">trending</a>
     <a href="#signals">signals</a>
+    <a href="#nft">nft</a>
     <a href="#scan">scan</a>
   </nav>
   <div class="topbar-right">
@@ -51,11 +52,11 @@
   <!-- SCAN -->
   <section class="section" id="scan">
     <div class="sec-head">
-      <h2 class="serif">scan wallet</h2>
-      <p class="sec-sub">paste any solana address — see holdings &amp; activity</p>
+      <h2 class="serif">scan token</h2>
+      <p class="sec-sub">paste token contract address (ca) — holders, supply &amp; links</p>
     </div>
     <div class="scanbar">
-      <input id="scanInput" type="text" placeholder="solana wallet address…" autocomplete="off" spellcheck="false">
+      <input id="scanInput" type="text" placeholder="paste token CA…" autocomplete="off" spellcheck="false">
       <button class="btn btn-primary" id="scanGo">scan</button>
     </div>
     <div id="scanResult" class="scanresult" hidden></div>
@@ -134,6 +135,20 @@
       </div>
     </div>
     <ol class="signallist" id="signalList"></ol>
+  </section>
+
+  <!-- NFT TRACKER -->
+  <section class="section" id="nft">
+    <div class="sec-head">
+      <h2 class="serif">nft tracker</h2>
+      <p class="sec-sub">floor moves, sweeps &amp; unusual activity — live</p>
+    </div>
+
+    <h3 class="subhead muted">top collections</h3>
+    <div class="nftgrid" id="nftGrid"><p class="muted pad">loading…</p></div>
+
+    <h3 class="subhead muted">live activity</h3>
+    <ol class="nftfeed" id="nftFeed"><li class="muted pad">loading…</li></ol>
   </section>
 
   <!-- TELEGRAM -->
