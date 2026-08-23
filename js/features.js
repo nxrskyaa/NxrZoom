@@ -71,10 +71,10 @@ function renderScan(d){
 }
 
 $f('#scanGo').addEventListener('click', doScan);
-$f('#scanInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doScan(); });
+if($f('#scanInput')) $f('#scanInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doScan(); });
 
 // ===== NFT TRACKER =====
-let solUsd = 210;
+var solUsd = 210;
 
 const TYPE_LABEL = {list:'listed', bid:'bid', sell:'sold', buy:'bought'};
 function fmtSol(l){ return l!=null ? (l/1e9).toFixed(2)+' SOL' : '—'; }
