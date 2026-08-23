@@ -55,10 +55,25 @@ ol,ul{list-style:none}
 .search{width:200px}
 
 @media (max-width:720px){
-  .topbar{flex-wrap:wrap;gap:10px;padding:14px 16px}
-  .topnav{order:-1;width:100%;gap:14px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .topbar{flex-wrap:wrap;gap:10px;padding:14px 16px;border-bottom:none}
+  .topnav{display:none}
   .topbar-right{width:100%;margin-left:0}
   .search{flex:1;width:auto}
+
+  /* bottom tab bar — native app style */
+  .tabbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:99;
+    display:flex;background:#faf8f1;
+    border-top:1px solid var(--line);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+  }
+  .tabbar a{
+    flex:1;text-align:center;font-size:10px;color:var(--muted);
+    padding:6px 2px;text-decoration:none;
+  }
+  .tabbar a.active{color:var(--ink);font-weight:600}
+  .tabbar a .ticon{display:block;font-size:16px;margin-bottom:2px}
+  body{padding-bottom:64px}
 }
 
 /* buttons */
