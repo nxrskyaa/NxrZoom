@@ -109,7 +109,85 @@ async function loadNft(){
       </a>`;
     }).join('');
 
-    // activity feed
+    // ===== smart money detection engine =====
+    const alerts = [];
+    const raw = (d.activities||[]).filter(a=>['list','bid','sell','buy'].includes(a.type));
+    const byColl = {};
+    raw.forEach(a=>{ (byColl[a.collectionSymbol] = byColl[a.collectionSymbol]||[]).push(a); });
+
+    // 1. SWEEP: same buyer, >=3 buys, <=15 min window
+    for(const [coll, evts] of Object.entries(byColl)){
+      const buys = evts.filter(a=>a.type==='buy'||a.type==='sell');
+      const byBuyer = {};
+      buys.forEach(b=>{
+        if(!b.buyer) return;
+        const k = b.buyer;
+        (byBuyer[k]=byBuyer[k]||[]).push(b);
+      });
+      for(const [buyer, bs] of Object.entries(byBuyer)){
+        if(bs.length >= 3){
+          const total = bs.reduce((s,b)=>s+Number(b.price||0),0);
+          alerts.push({
+            kind:'SWEEP', coll,
+            text:`${bs.length}x bought by ${short(buyer)}`,
+            detail:`total ${total.toFixed(1)} SOL ($${Math.round(total*solUsd)}) in ${Math.round(Math.max(...bs.map(b=>b.blockTime||0))-Math.min(...bs.map(b=>b.blockTime||0))/60)||'<1'}m`,
+            sig:bs[0].signature
+          });
+        }
+      }
+    }
+
+    // 2. FLOOR MOVE: compare current floor vs avg listing price wave
+    for(const c of (d.collections||[])){
+      if(c.fpChange24h!=null && Math.abs(Number(c.fpChange24h))>=0.03){
+        const pct = Number(c.fpChange24h)*100;
+        alerts.push({
+          kind: pct>=0?'FP +':'FP −', coll:c.symbol,
+          text:`floor ${pct>=0?'+':''}${pct.toFixed(1)}% 24h`,
+          detail:`now ${(c.floor/1e9).toFixed(3)} SOL · ${c.listedCount??'?'} listed`,
+          sig:null,
+          tone: pct>=0?'up':'down'
+        });
+      }
+    }
+
+    // 3. UNUSUAL ACTIVITY: event burst vs the small sample we hold
+    for(const [coll, evts] of Object.entries(byColl)){
+      const lists = evts.filter(e=>e.type==='list');
+      if(lists.length >= 5){
+        const prices = lists.map(l=>Number(l.price||0)).sort((a,b)=>a-b);
+        const med = prices[Math.floor(prices.length/2)];
+        alerts.push({
+          kind:'LISTING WAVE', coll,
+          text:`${lists.length} new listings in window`,
+          detail:`median ${med.toFixed(2)} SOL — possible dump pressure`,
+          sig:lists[0].signature,
+          tone:'down'
+        });
+      }
+      const bids = evts.filter(e=>e.type==='bid');
+      if(bids.length >= 6){
+        alerts.push({
+          kind:'BID PRESSURE', coll,
+          text:`${bids.length} active bids in window`,
+          detail:'accumulation signal — buyers stepping in',
+          sig:bids[0].signature,
+          tone:'up'
+        });
+      }
+    }
+
+    // render alert chips
+    $f('#nftAlerts').innerHTML = alerts.length ? alerts.slice(0,8).map(al=>`
+      <a class="nftalert${al.tone?' '+al.tone:''}" href="https://magiceden.io/collections/solana/${al.coll}" target="_blank" rel="noopener">
+        <span class="na-kind">${esc2(al.kind)}</span>
+        <span class="na-coll">${esc2(al.coll.replace(/_/g,' '))}</span>
+        <span class="na-text">${esc2(al.text)}</span>
+        <span class="na-detail">${esc2(al.detail)}</span>
+      </a>`).join('')
+      : '<p class="muted pad">no unusual signals right now — market calm.</p>';
+
+    // ===== plain activity feed =====
     const events = (d.activities||[]).filter(a=>TYPE_LABEL[a.type]).slice(0,12);
     $f('#nftFeed').innerHTML = events.length ? events.map(a=>{
       const sol = Number(a.price||0);

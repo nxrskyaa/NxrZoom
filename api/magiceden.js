@@ -34,8 +34,8 @@ const stats = (sym) => cached('st:'+sym, 120000, async ()=>{
   }catch(e){ return {symbol:sym, name:sym.replace(/_/g,' '), floor:null}; }
 });
 
-const acts = (sym) => cached('ac:'+sym, 30000, async ()=>{
-  try{ return await j(`${BASE}/collections/${sym}/activities?offset=0&limit=10`); }
+const acts = (sym, n=10) => cached('ac:'+sym+':'+n, 30000, async ()=>{
+  try{ return await j(`${BASE}/collections/${sym}/activities?offset=0&limit=${n}`); }
   catch(e){ return []; }
 });
 
@@ -66,9 +66,9 @@ export default {
     return {collections:w, eventCounts:counts};
   },
   async activities(){
-    const all = (await Promise.all(WATCH.map(s=>acts(s)))).flat();
+    const all = (await Promise.all(WATCH.map(s=>acts(s,12)))).flat();
     all.sort((a,b)=>(b.blockTime||0)-(a.blockTime||0));
-    return all.slice(0,24);
+    return all.slice(0,30);
   },
   launchpad
 };

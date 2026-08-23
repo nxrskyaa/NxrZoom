@@ -182,6 +182,27 @@
   letter-spacing:.05em;margin-right:4px;
 }
 .nftcard.lp{border-color:var(--line)}
+/* ===== smart money alerts ===== */
+.nftalerts{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.nftalert{
+  display:grid;grid-template-columns:auto auto 1fr;gap:4px 10px;
+  align-items:center;
+  background:#faf8f1;border:1px solid var(--line);
+  border-left:3px solid var(--muted);
+  padding:8px 12px;font-size:11px;
+  transition:border-color .15s ease;
+}
+.nftalert:hover{border-color:var(--black)}
+.nftalert.up{border-left-color:#1a7f37}
+.nftalert.down{border-left-color:#c62828}
+.na-kind{
+  font-weight:600;font-size:9px;letter-spacing:.06em;
+  background:var(--black);color:var(--paper);
+  padding:2px 6px;border-radius:2px;
+}
+.na-coll{font-weight:600;text-transform:lowercase}
+.na-text{justify-self:end;color:var(--ink)}
+.nftalert .na-detail{grid-column:1/-1;color:var(--muted);font-size:10px}
 .monoaddr{font-family:'IBM Plex Mono',monospace}
 .holder-row{grid-template-columns:minmax(140px,2fr) repeat(3,minmax(64px,.9fr))!important}
 
