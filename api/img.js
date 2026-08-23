@@ -1,5 +1,5 @@
 // nxrzoom_ — image proxy for ipfs/nft cdns (whitelisted)
-const OK_HOST = /(\.ipfs\.w3s\.link|\.ipfs\.dweb\.link|ipfs\.io|magiceden\.dev|cloudflare-ipfs\.com|nft-cdn\.magiceden\.dev)$/i;
+const OK_HOST = /(\.ipfs\.w3s\.link|\.ipfs\.dweb\.link|ipfs\.io|cloudflare-ipfs\.com|mypinata\.cloud|magiceden\.dev)$/i;
 
 export default async function handler(req, res){
   const u = (req.query.url||'').toString();
