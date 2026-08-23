@@ -11,7 +11,7 @@ function renderCalls(pairs){
     const mint = p.baseToken.address;
     const x = multOf(p.priceChange.h24).toFixed(2)+'x';
     const pct = (p.priceChange.h24>=0?'+':'')+Number(p.priceChange.h24).toFixed(1)+'%';
-    const cap = `${fmtUsd(Number(p.priceUsd)*(p.fdv||0))} · ${fmtUsd((p.liquidity&&p.liquidity.usd)||0)} liq`;
+    const cap = `${fmtUsd(mcapOf(p))} · ${fmtUsd((p.liquidity&&p.liquidity.usd)||0)} liq`;
     const links = buyLinks(mint, p.url)
       .map(l=>`<a class="buyl${l.hot?' hot':''}" href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join('');
     return `
@@ -34,6 +34,11 @@ function esc(s){
   return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// real market cap from api (fallback fdv)
+function mcapOf(p){
+  return p.marketCap ?? p.fdv ?? null;
+}
+
 // ===== render: live feed =====
 function feedRowHTML(p, isNew=false){
   const mint = p.baseToken.address;
@@ -41,11 +46,11 @@ function feedRowHTML(p, isNew=false){
   const links = buyLinks(mint, p.url)
     .map(l=>`<a class="buyl${l.hot?' hot':''}" href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join('');
   return `
-  <li class="fitem${isNew?' new':''}" data-mint="${mint}" data-mcap="${Math.round((Number(p.priceUsd)*(p.fdv||0))/1000)||0}">
+  <li class="fitem${isNew?' new':''}" data-mint="${mint}" data-mcap="${Math.round((mcapOf(p)||0)/1000)||0}">
     <button class="frow" aria-expanded="false">
       <span class="wbadge">${buys} b</span>
       <span class="ftoken">$${esc(p.baseToken.symbol)}</span>
-      <span class="fmcap">${fmtUsd(Number(p.priceUsd)*(p.fdv||0))}</span>
+      <span class="fmcap">${fmtUsd(mcapOf(p))}</span>
       <span class="ftime">${fmtAge(p.pairCreatedAt)}</span>
       <span class="farrow">▾</span>
     </button>
@@ -90,7 +95,7 @@ function renderTable(pairs){
       <span class="num h6c">${pc(p.priceChange?.h6)}</span>
       <span class="num">${pc(p.priceChange?.h24)}</span>
       <span class="num vol volc">${fmtUsd(p.volume&&p.volume.h24)}</span>
-      <span class="num mcap mcapt">${fmtUsd(Number(p.priceUsd)*(p.fdv||0))}</span>
+      <span class="num mcap mcapt">${fmtUsd(mcapOf(p))}</span>
     </a>`;
   }).join('');
 }
@@ -170,6 +175,20 @@ document.querySelectorAll('[data-sig]').forEach(btn=>{
   });
 });
 
+// ===== stats bar (live) =====
+function renderStats(pairs){
+  const vol24 = pairs.reduce((s,p)=>s+((p.volume&&p.volume.h24)||0),0);
+  const wallets = pairs.reduce((s,p)=>s+((p.txns&&p.txns.h24?p.txns.h24.buys+p.txns.h24.sells:0)),0);
+  const called = pairs.length;
+  const gains = pairs.map(p=>p.priceChange&&p.priceChange.h24).filter(v=>v!=null&&v>0);
+  const avgX = gains.length ? gains.reduce((a,b)=>a+b,0)/gains.length/100 : null;
+  const set = (id,v)=>{ const el=$(id); if(el&&v!=null) el.textContent=v; };
+  set('#statVol', fmtUsd(vol24));
+  set('#statWallets', wallets.toLocaleString('en-US'));
+  set('#statCalled', String(called));
+  set('#statAvg', avgX ? avgX.toFixed(1)+'x' : '—');
+}
+
 // ===== live refresh =====
 async function refresh(){
   if(paused && window.__PAIRS__) return;
@@ -182,6 +201,7 @@ async function refresh(){
     renderFeed(pairs);
     renderTable(pairs);
     renderSignals(pairs, document.querySelector('[data-sig].active')?.dataset.sig || 'hot');
+    renderStats(pairs);
     applyFilters();
     const el = $('#updatedAt');
     if(el) el.textContent = 'just now';
