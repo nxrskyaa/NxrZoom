@@ -34,6 +34,29 @@ function esc(s){
   return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// short CA + one-click copy
+function shortCa(a){ return a ? a.slice(0,4)+'…'+a.slice(-4) : ''; }
+function caChip(mint){
+  return `<button class="cacopy" data-ca="${esc(mint)}" title="copy contract address">${shortCa(mint)} <span class="cicon">⧉</span></button>`;
+}
+document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('.cacopy');
+  if(!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const ca = btn.dataset.ca;
+  try{ await navigator.clipboard.writeText(ca); }
+  catch(_){
+    const ta = document.createElement('textarea');
+    ta.value = ca; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  }
+  const old = btn.innerHTML;
+  btn.innerHTML = 'copied ✓';
+  btn.classList.add('done');
+  setTimeout(()=>{ btn.innerHTML = old; btn.classList.remove('done'); }, 1200);
+});
+
 // real market cap from api (fallback fdv)
 function mcapOf(p){
   return p.marketCap ?? p.fdv ?? null;
@@ -50,6 +73,7 @@ function feedRowHTML(p, isNew=false){
     <button class="frow" aria-expanded="false">
       <span class="wbadge">${buys} b</span>
       <span class="ftoken">$${esc(p.baseToken.symbol)}</span>
+      ${caChip(mint)}
       <span class="fmcap">${fmtUsd(mcapOf(p))}</span>
       <span class="ftime">${fmtAge(p.pairCreatedAt)}</span>
       <span class="farrow">▾</span>
@@ -64,8 +88,8 @@ function renderFeed(pairs){
   $('#feedList').innerHTML = rows.map(p=>feedRowHTML(p)).join('');
 }
 
-// expand/collapse — delegation so it works for all rows
-$('#feedList').addEventListener('click', (e)=>{
+// feed expand/collapse — delegation so it works for all rows
+if($('#feedList')) $('#feedList').addEventListener('click', (e)=>{
   if(e.target.closest('.buyl')) return;
   const row = e.target.closest('.frow');
   if(!row) return;
@@ -89,7 +113,7 @@ function renderTable(pairs){
     const pc = (v)=> v==null ? '<span class="muted">—</span>' : `<span class="${v>=0?'green':'red'}">${v>=0?'+':''}${Number(v).toFixed(v>100?0:2)}%</span>`;
     return `
     <a class="trow" href="${p.url||`https://dexscreener.com/solana/${mint}`}" target="_blank" rel="noopener">
-      <span><span class="tt-name">${esc(p.baseToken.name===p.baseToken.symbol?p.baseToken.name:p.baseToken.name)}</span><span class="tt-sym">$${esc(p.baseToken.symbol)}</span></span>
+      <span><span class="tt-name">${esc(p.baseToken.name===p.baseToken.symbol?p.baseToken.name:p.baseToken.name)}</span><span class="tt-sym">$${esc(p.baseToken.symbol)}</span>${caChip(mint)}</span>
       <span class="tc-created">${fmtAge(p.pairCreatedAt)}</span>
       <span class="num">${pc(p.priceChange?.h1)}</span>
       <span class="num h6c">${pc(p.priceChange?.h6)}</span>
@@ -148,12 +172,12 @@ function applyFilters(){
     li.style.display = ok ? '' : 'none';
   });
 }
-['walletsMin','walletsMax','mcapMin','mcapMax','tickerFilter'].forEach(id=>$('#'+id).addEventListener('input',applyFilters));
-$('#searchInput').addEventListener('input',applyFilters);
+['walletsMin','walletsMax','mcapMin','mcapMax','tickerFilter'].forEach(id=>{ if($('#'+id)) $('#'+id).addEventListener('input',applyFilters); });
+if($('#searchInput')) $('#searchInput').addEventListener('input',applyFilters);
 
 // ===== pause / resume =====
 let paused = false;
-$('#pauseBtn').addEventListener('click',()=>{
+if($('#pauseBtn')) $('#pauseBtn').addEventListener('click',()=>{
   paused = !paused;
   $('#pauseBtn').textContent = paused ? 'resume' : 'pause';
 });
@@ -189,7 +213,7 @@ function renderStats(pairs){
   set('#statAvg', avgX ? avgX.toFixed(1)+'x' : '—');
 }
 
-// ===== live refresh =====
+// ===== live refresh (renders only what exists on this page) =====
 async function refresh(){
   if(paused && window.__PAIRS__) return;
   try{
@@ -197,10 +221,10 @@ async function refresh(){
     const pairs = await DS.pairs(addrs);
     if(!pairs.length) throw new Error('empty');
     window.__PAIRS__ = pairs;
-    renderCalls(pairs);
-    renderFeed(pairs);
-    renderTable(pairs);
-    renderSignals(pairs, document.querySelector('[data-sig].active')?.dataset.sig || 'hot');
+    if($('#topCalls'))  renderCalls(pairs);
+    if($('#feedList'))  renderFeed(pairs);
+    if($('#tokenRows')) renderTable(pairs);
+    if($('#signalList')) renderSignals(pairs, document.querySelector('[data-sig].active')?.dataset.sig || 'hot');
     renderStats(pairs);
     applyFilters();
     const el = $('#updatedAt');

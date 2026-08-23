@@ -7,19 +7,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/components.css">
 </head>
 <body>
 
 <header class="topbar">
-  <a class="logo" href="#">nxrzoom<span class="cursor">_</span></a>
+  <a class="logo" href="/">nxrzoom<span class="cursor">_</span></a>
   <nav class="topnav">
-    <a href="#feed">feed</a>
-    <a href="#trending">trending</a>
-    <a href="#signals">signals</a>
-    <a href="#nft">nft</a>
-    <a href="#scan">scan</a>
+    <a href="/" class="active">feed</a>
+    <a href="/trending">trending</a>
+    <a href="/signals">signals</a>
+    <a href="/nft">nft</a>
+    <a href="/scan">scan</a>
   </nav>
   <div class="topbar-right">
     <button class="btn btn-ghost btn-bell" id="alertBtn" title="smart money alerts">
@@ -49,19 +49,6 @@
     <div class="stat stat-live"><span class="livedot"></span><span class="stat-label">live</span></div>
   </section>
 
-  <!-- SCAN -->
-  <section class="section" id="scan">
-    <div class="sec-head">
-      <h2 class="serif">scan token</h2>
-      <p class="sec-sub">paste token contract address (ca) — holders, supply &amp; links</p>
-    </div>
-    <div class="scanbar">
-      <input id="scanInput" type="text" placeholder="paste token CA…" autocomplete="off" spellcheck="false">
-      <button class="btn btn-primary" id="scanGo">scan</button>
-    </div>
-    <div id="scanResult" class="scanresult" hidden></div>
-  </section>
-
   <!-- ALERT DROPDOWN -->
   <div id="alertDropdown" class="alertdd" hidden>
     <div id="alertPanel"></div>
@@ -71,7 +58,7 @@
   <section class="section" id="topcalls">
     <div class="sec-head">
       <h2 class="serif">top calls <span class="muted">— 24h</span></h2>
-      <p class="sec-sub">peak vs. the cap we called it at</p>
+      <a class="sec-link" href="/trending">full table →</a>
     </div>
     <div class="calls" id="topCalls"></div>
   </section>
@@ -105,56 +92,6 @@
     <ol class="feedlist" id="feedList"></ol>
   </section>
 
-  <!-- TRENDING -->
-  <section class="section" id="trending">
-    <div class="sec-head">
-      <h2 class="serif">trending tokens</h2>
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-tab="top">top</button>
-        <button class="tab" data-tab="trending">trending</button>
-        <button class="tab" data-tab="new">new</button>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="thead">
-        <span class="tc-token">token</span><span class="tc-created">created</span><span class="num">1h</span><span class="num">6h</span><span class="num">24h</span><span class="num">volume</span><span class="num">mcap</span>
-      </div>
-      <div id="tokenRows"></div>
-    </div>
-  </section>
-
-  <!-- SIGNALS -->
-  <section class="section" id="signals">
-    <div class="sec-head">
-      <h2 class="serif">alpha signals</h2>
-      <div class="tabs">
-        <button class="tab active" data-sig="hot">hot</button>
-        <button class="tab" data-sig="new">new</button>
-        <button class="tab" data-sig="projects">projects</button>
-        <button class="tab" data-sig="people">people</button>
-      </div>
-    </div>
-    <ol class="signallist" id="signalList"></ol>
-  </section>
-
-  <!-- NFT TRACKER -->
-  <section class="section" id="nft">
-    <div class="sec-head">
-      <h2 class="serif">nft tracker</h2>
-      <p class="sec-sub">floor moves, sweeps &amp; unusual activity — live</p>
-    </div>
-
-    <h3 class="subhead muted">watchlist — floor moves</h3>
-    <div class="nftgrid" id="nftGrid"><p class="muted pad">loading…</p></div>
-
-    <h3 class="subhead muted">live activity</h3>
-    <div id="nftAlerts" class="nftalerts"></div>
-    <ol class="nftfeed" id="nftFeed"><li class="muted pad">loading…</li></ol>
-
-    <h3 class="subhead muted">launchpad — minting now</h3>
-    <div class="nftgrid" id="nftLaunch"><p class="muted pad">loading…</p></div>
-  </section>
-
   <!-- TELEGRAM -->
   <section class="tgbanner">
     <div>
@@ -178,8 +115,8 @@
   </div>
 </footer>
 
-<script src="js/api.js"></script>
-<script src="js/app.js"></script>
-<script src="js/features.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/features.js"></script>
 </body>
 </html>

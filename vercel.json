@@ -1,0 +1,10 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/trending", "destination": "/trending.html" },
+    { "source": "/signals", "destination": "/signals.html" },
+    { "source": "/nft", "destination": "/nft.html" },
+    { "source": "/scan", "destination": "/scan.html" }
+  ]
+}

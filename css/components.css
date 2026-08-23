@@ -159,6 +159,7 @@
 .subhead{font-size:12px;font-weight:600;text-transform:lowercase;margin:18px 0 10px}
 .pad{padding:14px 0}
 .nftgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.nftgrid-w{grid-template-columns:repeat(2,1fr)}
 .nftcard{
   display:flex;flex-direction:column;gap:8px;
   background:#faf8f1;border:1px solid var(--line);
@@ -182,27 +183,39 @@
   letter-spacing:.05em;margin-right:4px;
 }
 .nftcard.lp{border-color:var(--line)}
-/* ===== smart money alerts ===== */
-.nftalerts{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+/* ===== smart money alert cards (bot-style) ===== */
+.nftalerts{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
 .nftalert{
-  display:grid;grid-template-columns:auto auto 1fr;gap:4px 10px;
-  align-items:center;
   background:#faf8f1;border:1px solid var(--line);
   border-left:3px solid var(--muted);
-  padding:8px 12px;font-size:11px;
-  transition:border-color .15s ease;
+  padding:10px 14px;
 }
-.nftalert:hover{border-color:var(--black)}
 .nftalert.up{border-left-color:#1a7f37}
 .nftalert.down{border-left-color:#c62828}
+.na-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
 .na-kind{
   font-weight:600;font-size:9px;letter-spacing:.06em;
   background:var(--black);color:var(--paper);
-  padding:2px 6px;border-radius:2px;
+  padding:2px 7px;border-radius:2px;white-space:nowrap;
 }
-.na-coll{font-weight:600;text-transform:lowercase}
-.na-text{justify-self:end;color:var(--ink)}
-.nftalert .na-detail{grid-column:1/-1;color:var(--muted);font-size:10px}
+.na-coll{font-weight:600;font-size:13px;color:var(--ink);text-decoration:none}
+.na-coll:hover{text-decoration:underline}
+.na-line{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink);line-height:1.6}
+.na-links{display:flex;gap:6px;align-items:center;margin-top:6px}
+.na-time{font-size:10px;color:var(--faint)}
+
+/* ===== ca copy chip ===== */
+.cacopy{
+  font-family:'IBM Plex Mono',monospace;font-size:9px;
+  color:var(--muted);background:#f3f0e5;border:1px solid var(--line);
+  padding:1px 5px;border-radius:2px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:3px;
+  transition:border-color .15s ease,color .15s ease;
+  vertical-align:middle;margin-left:5px;
+}
+.cacopy:hover{border-color:var(--black);color:var(--ink)}
+.cacopy.done{color:#1a7f37;border-color:#1a7f37}
+.cicon{font-size:8px}
 .monoaddr{font-family:'IBM Plex Mono',monospace}
 .holder-row{grid-template-columns:minmax(140px,2fr) repeat(3,minmax(64px,.9fr))!important}
 
