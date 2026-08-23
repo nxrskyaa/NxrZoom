@@ -105,32 +105,38 @@ async function loadNft(){
       </a>`;
     }).join('');
 
-    // activity feed — group by signature to detect sweeps
-    const bySig = {};
+    // activity feed — group same-type events on a collection (sweeps / listing waves)
+    const byKey = {};
     for(const a of (d.activities||[])){
-      if(a.type!=='sell'&&a.type!=='buy') continue;
-      (bySig[a.signature] = bySig[a.signature]||{count:0,total:0,collection:a.collectionSymbol,sig:a.signature,blockTime:a.blockTime,buyer:a.buyer,seller:a.seller});
-      bySig[a.signature].count++;
-      bySig[a.signature].total += Number(a.price||0);
+      if(!['list','bid','sell','buy'].includes(a.type)) continue;
+      const key = a.signature + '|' + a.collectionSymbol + '|' + a.type;
+      const k = (byKey[key] = byKey[key]||{type:a.type,count:0,total:0,lastPrice:0,collection:a.collectionSymbol,sig:a.signature,blockTime:a.blockTime,buyer:a.buyer,seller:a.seller});
+      k.count++;
+      k.total += Number(a.price||0);
+      k.lastPrice = Number(a.price||0);
     }
-    const events = Object.values(bySig)
+    const events = Object.values(byKey)
       .sort((a,b)=>(b.blockTime||0)-(a.blockTime||0))
       .slice(0,12);
 
     $f('#nftFeed').innerHTML = events.length ? events.map(e=>{
       const isSweep = e.count >= 3;
+      const typeLabel = {list:'listed', bid:'bid', sell:'sold', buy:'bought', poolUpdate:'pool move'}[e.type] || e.type;
+      const priceTxt = e.type==='list'||e.type==='bid'||e.type==='sell'
+        ? ` @ ${e.lastPrice.toFixed(2)} SOL ${fmtEthStyle(e.lastPrice)}`
+        : '';
       return `
       <li class="nftitem${isSweep?' sweep':''}">
         <div>
-          <div>${isSweep?'<span class="sweep-tag">SWEEP</span> ':''}<span class="ftoken">${e.count}x sale${e.count>1?'s':''}</span> <span class="fmcap">${esc2(e.collection)}</span></div>
-          <div class="sig-desc">${e.total.toFixed(2)} SOL ${fmtEthStyle(e.total)} · by ${short(e.seller||e.buyer)} · ${ago(e.blockTime)} ago</div>
+          <div>${isSweep?'<span class="sweep-tag">SWEEP</span> ':''}<span class="ftoken">${typeLabel}</span> <span class="fmcap">${esc2(e.collection)}</span>${priceTxt?` <span class="fmcap">${priceTxt}</span>`:''}</div>
+          <div class="sig-desc">${short(e.seller||e.buyer)} · ${ago(e.blockTime)} ago</div>
         </div>
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
           <a class="buyl" href="https://magiceden.io/collections/solana/${e.collection}" target="_blank" rel="noopener">collection</a>
           <a class="buyl" href="https://solscan.io/tx/${e.sig}" target="_blank" rel="noopener">tx</a>
         </div>
       </li>`;
-    }).join('') : '<li class="muted pad">no recent marketplace sales — quiet market.</li>';
+    }).join('') : '<li class="muted pad">no recent marketplace activity — quiet market.</li>';
   }catch(e){
     $f('#nftGrid').innerHTML = '<p class="muted pad">gagal load — refresh page.</p>';
   }

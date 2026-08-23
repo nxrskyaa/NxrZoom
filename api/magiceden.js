@@ -7,42 +7,40 @@ async function j(url){
   return r.json();
 }
 
-// collections we watch for the activity feed
-const WATCH = ['mad_lads','famous_fox_federation','tensorians','solana_monke_busines','cyber_frogs','ommnus','degods','y00ts'];
+// curated watchlist — real blue chips w/ active markets
+const WATCH = ['mad_lads','famous_fox_federation','tensorians','degods','y00ts','solana_monke_busines','ommnus','cyber_frogs'];
+
+async function collectionStats(symbol){
+  try{
+    const s = await j(`${BASE}/collections/${symbol}/stats`);
+    return {
+      symbol,
+      name: symbol.replace(/_/g,' '),
+      image: s.image || null,
+      floor: s.floorPrice ?? null,
+      listedCount: s.listedCount ?? null,
+      vol24hr: s.volume24hr ?? null,
+      avgPrice24hr: s.avgPrice24hr ?? null,
+      fpChange24h: s.floorPriceChange24hr ?? null
+    };
+  }catch(e){ return {symbol, name: symbol.replace(/_/g,' '), floor:null}; }
+}
 
 export default {
-  async trending(page=1){
-    // offset must be multiple of 20
-    let data = await j(`${BASE}/collections?offset=${(page-1)*20}&limit=20`);
-    // top by 24h volume
-    data = (data||[]).sort((a,b)=>(b.volume24hr||0)-(a.volume24hr||0));
-    return data.map(c=>({
-      symbol: c.symbol,
-      name: c.name,
-      image: c.image,
-      floor: c.floorPrice,
-      listedCount: c.listedCount,
-      vol24hr: c.volume24hr,
-      volumeAll: c.volumeAll,
-      fpChange24h: c.floorPriceChange24hr ?? null
-    }));
+  async trending(){
+    // curated watchlist with real stats (browse endpoint lacks floor data)
+    const stats = await Promise.all(WATCH.map(s=>collectionStats(s)));
+    return stats.sort((a,b)=>(b.vol24hr||0)-(a.vol24hr||0));
   },
-  async collectionActivities(symbol, limit=10){
-    try{
-      const acts = await j(`${BASE}/collections/${symbol}/activities?offset=0&limit=${limit}`);
-      return acts||[];
-    }catch(e){ return []; }
+  async collectionActivities(symbol, limit=8){
+    try{ return await j(`${BASE}/collections/${symbol}/activities?offset=0&limit=${limit}`); }
+    catch(e){ return []; }
   },
-  async allActivities(perCollection=4){
-    const results = await Promise.all(
-      WATCH.map(s=>this.collectionActivities(s, perCollection))
-    );
+  async allActivities(perCollection=6){
+    const results = await Promise.all(WATCH.map(s=>this.collectionActivities(s, perCollection)));
     let all = [];
-    results.forEach((acts,i)=>{
-      acts.forEach(a=>all.push({...a, watch: WATCH[i]}));
-    });
-    // newest first
+    results.forEach(acts=>acts.forEach(a=>all.push(a)));
     all.sort((a,b)=>(b.blockTime||0)-(a.blockTime||0));
-    return all.slice(0, 40);
+    return all.slice(0, 50);
   }
 };
