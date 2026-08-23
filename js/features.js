@@ -70,7 +70,7 @@ function renderScan(d){
   `;
 }
 
-$f('#scanGo').addEventListener('click', doScan);
+if($f('#scanGo')) $f('#scanGo').addEventListener('click', doScan);
 if($f('#scanInput')) $f('#scanInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doScan(); });
 
 // ===== NFT TRACKER =====
