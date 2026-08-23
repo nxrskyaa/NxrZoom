@@ -130,7 +130,7 @@ async function loadNft(){
     // launchpad
     $f('#nftLaunch').innerHTML = (d.launchpad||[]).length ? (d.launchpad).map(c=>`
       <a class="nftcard lp" href="https://magiceden.io/collections/solana/${c.symbol}" target="_blank" rel="noopener">
-        <img src="${esc2(c.image||'')}" alt="" loading="lazy" onerror="this.style.display='none'">
+        ${c.image?`<img src="/api/img?url=${encodeURIComponent(c.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
         <div class="nftc-info">
           <span class="nftc-name">${esc2(c.name)}</span>
           <span class="nftc-vol">${esc2(c.desc||'')}</span>
