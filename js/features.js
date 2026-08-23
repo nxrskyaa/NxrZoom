@@ -242,7 +242,7 @@ async function loadNft(){
         </div>
       </a>`).join('') : '<p class="muted pad">no live mints right now.</p>';
   }catch(e){
-    if($f('#nftGrid')) $f('#nftGrid').innerHTML = '<p class="muted pad">gagal load — refresh page.</p>';
+    if($f('#nftGrid')) $f('#nftGrid').innerHTML = '<p class="muted pad">gagal load: '+esc2(String(e&&(e.stack||e.message)||e)).slice(0,200)+'</p>';
   }
 }
 
