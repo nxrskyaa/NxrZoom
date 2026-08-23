@@ -76,13 +76,16 @@ $f('#scanInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doScan(); 
 // ===== NFT TRACKER =====
 let solUsd = 210;
 
-function fmtSol(lamports){
-  return lamports!=null ? (lamports/1e9).toFixed(3)+' SOL' : '—';
-}
-function fmtEthStyle(sol){ return solUsd ? `($${Math.round(sol*solUsd)})` : ''; }
+const TYPE_LABEL = {list:'listed', bid:'bid', sell:'sold', buy:'bought'};
+function fmtSol(l){ return l!=null ? (l/1e9).toFixed(2)+' SOL' : '—'; }
 function esc2(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtUsd2(n){ if(n==null||isNaN(n))return '—'; if(n>=1e6)return '$'+(n/1e6).toFixed(1)+'M'; if(n>=1e3)return '$'+(n/1e3).toFixed(1)+'K'; return '$'+Number(n).toFixed(0); }
-function ago(ts){ if(!ts)return''; const s=Date.now()/1000-ts; if(s<60)return Math.floor(s)+'s'; if(s<3600)return Math.floor(s/60)+'m'; return Math.floor(s/3600)+'h'; }
+function ago(ts){ if(!ts)return''; const s=Date.now()/1000-ts; if(s<60)return Math.floor(Math.max(1,s))+'s'; if(s<3600)return Math.floor(s/60)+'m'; return Math.floor(s/3600)+'h'; }
+function fpChgTxt(v){
+  if(v==null) return '<span class="muted">—</span>';
+  const pct = Number(v*100);
+  return `<span class="${pct>=0?'green':'red'}">${pct>=0?'+':''}${pct.toFixed(1)}%</span>`;
+}
 
 async function loadNft(){
   try{
@@ -90,57 +93,53 @@ async function loadNft(){
     const d = await r.json();
     if(!r.ok) throw new Error();
     solUsd = d.solUsd || 210;
+    const counts = d.eventCounts || {};
 
-    // collections grid
-    $f('#nftGrid').innerHTML = (d.collections||[]).slice(0,8).map(c=>{
-      const fpChg = c.fpChange24h!=null ? `<span class="${c.fpChange24h>=0?'green':'red'}">${c.fpChange24h>=0?'+':''}${Number(c.fpChange24h*100).toFixed(1)}%</span>` : '<span class="muted">—</span>';
+    // watchlist cards
+    $f('#nftGrid').innerHTML = (d.collections||[]).map(c=>{
+      const ec = counts[c.symbol] || {};
+      const act = (ec.list?ec.list+' listed':'') + (ec.bid?(ec.list?' · ':'')+ec.bid+' bids':'');
       return `
       <a class="nftcard" href="https://magiceden.io/collections/solana/${c.symbol}" target="_blank" rel="noopener">
-        <img src="${esc2(c.image||'')}" alt="" loading="lazy" onerror="this.style.display='none'">
         <div class="nftc-info">
           <span class="nftc-name">${esc2(c.name)}</span>
-          <span class="nftc-floor">FP ${fmtSol(c.floor)} · ${fpChg}</span>
-          <span class="nftc-vol">vol24 ${fmtUsd2((c.vol24hr||0)*solUsd)} · ${c.listedCount??'—'} listed</span>
+          <span class="nftc-floor">FP ${fmtSol(c.floor)} · ${fpChgTxt(c.fpChange24h)}</span>
+          <span class="nftc-vol">${act?act+' (10m)':'—'}${c.listedCount?' · '+c.listedCount+' listed':''}</span>
         </div>
       </a>`;
     }).join('');
 
-    // activity feed — group same-type events on a collection (sweeps / listing waves)
-    const byKey = {};
-    for(const a of (d.activities||[])){
-      if(!['list','bid','sell','buy'].includes(a.type)) continue;
-      const key = a.signature + '|' + a.collectionSymbol + '|' + a.type;
-      const k = (byKey[key] = byKey[key]||{type:a.type,count:0,total:0,lastPrice:0,collection:a.collectionSymbol,sig:a.signature,blockTime:a.blockTime,buyer:a.buyer,seller:a.seller});
-      k.count++;
-      k.total += Number(a.price||0);
-      k.lastPrice = Number(a.price||0);
-    }
-    const events = Object.values(byKey)
-      .sort((a,b)=>(b.blockTime||0)-(a.blockTime||0))
-      .slice(0,12);
-
-    $f('#nftFeed').innerHTML = events.length ? events.map(e=>{
-      const isSweep = e.count >= 3;
-      const typeLabel = {list:'listed', bid:'bid', sell:'sold', buy:'bought', poolUpdate:'pool move'}[e.type] || e.type;
-      const priceTxt = e.type==='list'||e.type==='bid'||e.type==='sell'
-        ? ` @ ${e.lastPrice.toFixed(2)} SOL ${fmtEthStyle(e.lastPrice)}`
-        : '';
+    // activity feed
+    const events = (d.activities||[]).filter(a=>TYPE_LABEL[a.type]).slice(0,12);
+    $f('#nftFeed').innerHTML = events.length ? events.map(a=>{
+      const sol = Number(a.price||0);
+      const usd = sol*solUsd;
       return `
-      <li class="nftitem${isSweep?' sweep':''}">
+      <li class="nftitem">
         <div>
-          <div>${isSweep?'<span class="sweep-tag">SWEEP</span> ':''}<span class="ftoken">${typeLabel}</span> <span class="fmcap">${esc2(e.collection)}</span>${priceTxt?` <span class="fmcap">${priceTxt}</span>`:''}</div>
-          <div class="sig-desc">${short(e.seller||e.buyer)} · ${ago(e.blockTime)} ago</div>
+          <div><span class="ftoken">${TYPE_LABEL[a.type]}</span> <span class="fmcap">${esc2((a.collectionSymbol||'').replace(/_/g,' '))}</span> <span class="fmcap">@ ${sol.toFixed(2)} SOL ($${Math.round(usd)})</span></div>
+          <div class="sig-desc">${short(a.seller||a.buyer)} · ${ago(a.blockTime)} ago</div>
         </div>
         <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-          <a class="buyl" href="https://magiceden.io/collections/solana/${e.collection}" target="_blank" rel="noopener">collection</a>
-          <a class="buyl" href="https://solscan.io/tx/${e.sig}" target="_blank" rel="noopener">tx</a>
+          <a class="buyl" href="https://magiceden.io/collections/solana/${a.collectionSymbol}" target="_blank" rel="noopener">collection</a>
+          <a class="buyl" href="https://solscan.io/tx/${a.signature}" target="_blank" rel="noopener">tx</a>
         </div>
       </li>`;
     }).join('') : '<li class="muted pad">no recent marketplace activity — quiet market.</li>';
+
+    // launchpad
+    $f('#nftLaunch').innerHTML = (d.launchpad||[]).length ? (d.launchpad).map(c=>`
+      <a class="nftcard lp" href="https://magiceden.io/collections/solana/${c.symbol}" target="_blank" rel="noopener">
+        <img src="${esc2(c.image||'')}" alt="" loading="lazy" onerror="this.style.display='none'">
+        <div class="nftc-info">
+          <span class="nftc-name">${esc2(c.name)}</span>
+          <span class="nftc-vol">${esc2(c.desc||'')}</span>
+        </div>
+      </a>`).join('') : '<p class="muted pad">no live mints right now.</p>';
   }catch(e){
-    $f('#nftGrid').innerHTML = '<p class="muted pad">gagal load — refresh page.</p>';
+    if($f('#nftGrid')) $f('#nftGrid').innerHTML = '<p class="muted pad">gagal load — refresh page.</p>';
   }
 }
 
 loadNft();
-setInterval(loadNft, 60000);
+setInterval(loadNft, 45000);

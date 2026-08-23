@@ -181,6 +181,7 @@
   font-size:9px;font-weight:600;padding:2px 6px;border-radius:2px;
   letter-spacing:.05em;margin-right:4px;
 }
+.nftcard.lp{border-color:var(--line)}
 .monoaddr{font-family:'IBM Plex Mono',monospace}
 .holder-row{grid-template-columns:minmax(140px,2fr) repeat(3,minmax(64px,.9fr))!important}
 
