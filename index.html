@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nxrzoom_ — live smart money feed</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="#">nxrzoom<span class="cursor">_</span></a>
+  <nav class="topnav">
+    <a href="#feed">feed</a>
+    <a href="#trending">trending</a>
+    <a href="#signals">signals</a>
+  </nav>
+  <div class="topbar-right">
+    <input id="searchInput" class="search" type="text" placeholder="search ticker / contract…" autocomplete="off">
+    <button class="btn btn-primary" id="connectBtn">connect wallet</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <p class="hero-kicker">smart money feed · updated <span id="updatedAt">just now</span></p>
+    <h1 class="hero-title">see what smart money<br>buys before the crowd.</h1>
+    <p class="hero-sub">tracking solana wallets in real time — calls, entries, exits.<br>curated by <span class="green">@nxrskyaa</span>.</p>
+  </section>
+
+  <!-- STATS STRIP -->
+  <section class="stats" aria-label="stats">
+    <div class="stat"><span class="stat-label">24h volume</span><span class="stat-value">$847.2M</span></div>
+    <div class="stat"><span class="stat-label">active wallets</span><span class="stat-value">12,847</span></div>
+    <div class="stat"><span class="stat-label">tokens called</span><span class="stat-value">3,291</span></div>
+    <div class="stat"><span class="stat-label">avg multiplier</span><span class="stat-value green">24.7x</span></div>
+    <div class="stat stat-live"><span class="livedot"></span><span class="stat-label">live</span></div>
+  </section>
+
+  <!-- TOP CALLS -->
+  <section class="section" id="topcalls">
+    <div class="sec-head">
+      <h2 class="serif">top calls <span class="muted">— 24h</span></h2>
+      <p class="sec-sub">peak vs. the cap we called it at</p>
+    </div>
+    <div class="calls" id="topCalls"></div>
+  </section>
+
+  <!-- LIVE FEED -->
+  <section class="section" id="feed">
+    <div class="sec-head">
+      <h2 class="serif">live feed</h2>
+      <button class="btn btn-ghost btn-sm" id="pauseBtn">pause</button>
+    </div>
+
+    <div class="filters">
+      <div class="fgroup">
+        <label>wallets in</label>
+        <input id="walletsMin" type="number" placeholder="min" value="2">
+        <span class="dash">–</span>
+        <input id="walletsMax" type="number" placeholder="max">
+      </div>
+      <div class="fgroup">
+        <label>mcap at call (k)</label>
+        <input id="mcapMin" type="number" placeholder="min">
+        <span class="dash">–</span>
+        <input id="mcapMax" type="number" placeholder="max">
+      </div>
+      <div class="fgroup fgrow">
+        <label>ticker</label>
+        <input id="tickerFilter" type="text" placeholder="$ticker…">
+      </div>
+    </div>
+
+    <ol class="feedlist" id="feedList"></ol>
+  </section>
+
+  <!-- TRENDING -->
+  <section class="section" id="trending">
+    <div class="sec-head">
+      <h2 class="serif">trending tokens</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="top">top</button>
+        <button class="tab" data-tab="trending">trending</button>
+        <button class="tab" data-tab="new">new</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="thead">
+        <span class="tc-token">token</span><span class="tc-created">created</span><span class="num">1h</span><span class="num">6h</span><span class="num">24h</span><span class="num">volume</span><span class="num">mcap</span>
+      </div>
+      <div id="tokenRows"></div>
+    </div>
+  </section>
+
+  <!-- SIGNALS -->
+  <section class="section" id="signals">
+    <div class="sec-head">
+      <h2 class="serif">alpha signals</h2>
+      <div class="tabs">
+        <button class="tab active" data-sig="hot">hot</button>
+        <button class="tab" data-sig="new">new</button>
+        <button class="tab" data-sig="projects">projects</button>
+        <button class="tab" data-sig="people">people</button>
+      </div>
+    </div>
+    <ol class="signallist" id="signalList"></ol>
+  </section>
+
+  <!-- TELEGRAM -->
+  <section class="tgbanner">
+    <div>
+      <div class="tg-title">smart money alerts on telegram</div>
+      <div class="tg-sub">instant push pas wallet-wallet top beli — gratis.</div>
+    </div>
+    <a class="tg-btn" href="https://t.me/nxrzoombot" target="_blank" rel="noopener">open bot →</a>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap foot-inner">
+    <span class="foot-logo">nxrzoom<span class="cursor">_</span></span>
+    <span class="foot-note">© 2026 — smart money monitoring</span>
+    <nav class="foot-links">
+      <a href="https://x.com/Nxrskyaa" target="_blank" rel="noopener">x</a>
+      <a href="https://t.me/Nxrskyaa" target="_blank" rel="noopener">telegram</a>
+      <a href="https://github.com/Nxrskyaa/NxrZoom" target="_blank" rel="noopener">github</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
