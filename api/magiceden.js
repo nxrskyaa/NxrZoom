@@ -13,8 +13,10 @@ const WATCH = ['mad_lads','famous_fox_federation','tensorians','solana_monke_bus
 export default {
   async trending(page=1){
     // offset must be multiple of 20
-    const data = await j(`${BASE}/collections?offset=${(page-1)*20}&limit=20`);
-    return (data||[]).map(c=>({
+    let data = await j(`${BASE}/collections?offset=${(page-1)*20}&limit=20`);
+    // top by 24h volume
+    data = (data||[]).sort((a,b)=>(b.volume24hr||0)-(a.volume24hr||0));
+    return data.map(c=>({
       symbol: c.symbol,
       name: c.name,
       image: c.image,
