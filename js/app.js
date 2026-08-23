@@ -1,85 +1,67 @@
-// nxrzoom_ — app logic
+// nxrzoom_ — app logic (live dexscreener data)
 const $ = (s) => document.querySelector(s);
 
-// ===== buy links: deep-link per token (mint) =====
-function mintFor(token){
-  const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  let h = 0;
-  for(const ch of token) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  let out = '';
-  let x = h || 1;
-  while(out.length < 44){
-    x = (x * 1103515245 + 12345) >>> 0;
-    out += B58[x % 58];
-  }
-  return out;
-}
-
-function buyLinks(token){
-  const mint = mintFor(token);
-  return [
-    { label:'axiom',    url:`https://axiom.trade/t/${mint}`,        hot:true },
-    { label:'gmgn',     url:`https://gmgn.ai/sol/token/${mint}` },
-    { label:'trojan',   url:`https://t.me/solana_trojanbot?start=r-${mint}` },
-    { label:'pump.fun', url:`https://pump.fun/coin/${mint}` },
-    { label:'dexscreener', url:`https://dexscreener.com/solana/${mint}` }
-  ];
-}
-
 // ===== render: top calls =====
-function renderCalls(){
-  $('#topCalls').innerHTML = DATA.topCalls.map((c,i)=>{
-    const links = buyLinks(c.token)
+function renderCalls(pairs){
+  const ranked = [...pairs]
+    .filter(p=>p.priceChange && p.priceChange.h24 != null)
+    .sort((a,b)=>(b.priceChange.h24)-(a.priceChange.h24))
+    .slice(0,6);
+  $('#topCalls').innerHTML = ranked.map((p,i)=>{
+    const mint = p.baseToken.address;
+    const x = multOf(p.priceChange.h24).toFixed(2)+'x';
+    const pct = (p.priceChange.h24>=0?'+':'')+Number(p.priceChange.h24).toFixed(1)+'%';
+    const cap = `${fmtUsd(Number(p.priceUsd)*(p.fdv||0))} · ${fmtUsd((p.liquidity&&p.liquidity.usd)||0)} liq`;
+    const links = buyLinks(mint, p.url)
       .map(l=>`<a class="buyl${l.hot?' hot':''}" href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join('');
     return `
-    <a class="call" href="${buyLinks(c.token)[0].url}" target="_blank" rel="noopener">
+    <div class="call">
       <span class="rank">${String(i+1).padStart(2,'0')}</span>
       <div>
-        <div class="call-token">${c.token}</div>
-        <div class="call-meta">${c.time} · ${c.cap} · ${c.w}w</div>
+        <div class="call-token">${esc(p.baseToken.symbol)}</div>
+        <div class="call-meta">${fmtAge(p.pairCreatedAt)} · ${cap}</div>
       </div>
       <div>
-        <div class="call-x">${c.x}</div>
-        <div class="call-pct">${c.pct}</div>
+        <div class="call-x">${x}</div>
+        <div class="call-pct">${pct}</div>
       </div>
       <span class="call-links">${links}</span>
-    </a>`;
+    </div>`;
   }).join('');
 }
 
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 // ===== render: live feed =====
-function feedRowHTML(item, isNew=false){
-  const links = buyLinks(item.token)
+function feedRowHTML(p, isNew=false){
+  const mint = p.baseToken.address;
+  const buys = p.txns && p.txns.m5 ? p.txns.m5.buys : 0;
+  const links = buyLinks(mint, p.url)
     .map(l=>`<a class="buyl${l.hot?' hot':''}" href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join('');
   return `
-  <li class="fitem${isNew?' new':''}">
+  <li class="fitem${isNew?' new':''}" data-mint="${mint}" data-mcap="${Math.round((Number(p.priceUsd)*(p.fdv||0))/1000)||0}">
     <button class="frow" aria-expanded="false">
-      <span class="wbadge">${item.w} w</span>
-      <span class="ftoken">${item.token}</span>
-      <span class="fmcap">${item.mcap||''}</span>
-      <span class="ftime">${item.t}</span>
+      <span class="wbadge">${buys} b</span>
+      <span class="ftoken">$${esc(p.baseToken.symbol)}</span>
+      <span class="fmcap">${fmtUsd(Number(p.priceUsd)*(p.fdv||0))}</span>
+      <span class="ftime">${fmtAge(p.pairCreatedAt)}</span>
       <span class="farrow">▾</span>
     </button>
-    <div class="buyrow" hidden><span hidden></span></div>
+    <div class="buyrow" hidden><span class="buylabel">buy on</span>${links}</div>
   </li>`;
 }
 
-// after insert, fill real links
-function hydrateBuyRow(li, token){
-  li.querySelector('.buyrow').innerHTML =
-    `<span class="buylabel">buy on</span>` +
-    buyLinks(token).map(l=>`<a class="buyl${l.hot?' hot':''}" href="${l.url}" target="_blank" rel="noopener">${l.label}</a>`).join('');
+function renderFeed(pairs){
+  // freshest pairs first
+  const rows = [...pairs].sort((a,b)=>(b.pairCreatedAt||0)-(a.pairCreatedAt||0));
+  $('#feedList').innerHTML = rows.map(p=>feedRowHTML(p)).join('');
 }
 
-function renderFeed(){
-  const list = $('#feedList');
-  list.innerHTML = DATA.feed.map(f=>feedRowHTML(f)).join('');
-  list.querySelectorAll('.fitem').forEach((li,i)=>hydrateBuyRow(li, DATA.feed[i].token));
-}
-
-// expand/collapse — event delegation so it works for new rows too
+// expand/collapse — delegation so it works for all rows
 $('#feedList').addEventListener('click', (e)=>{
-  if(e.target.closest('.buyl')) return; // don't toggle when clicking a link
+  if(e.target.closest('.buyl')) return;
   const row = e.target.closest('.frow');
   if(!row) return;
   const buyrow = row.nextElementSibling;
@@ -89,88 +71,73 @@ $('#feedList').addEventListener('click', (e)=>{
 });
 
 // ===== render: trending table =====
-function pctSpan(v){
-  const cls = v.startsWith('+') ? 'green' : v.startsWith('-') ? 'red' : 'muted';
-  return `<span class="${cls}">${v}</span>`;
-}
+let sortMode = 'vol'; // 'vol' | 'gain' | 'new'
 
-let sortKey = 'd'; // 'd' | 'h24'
-let sortDir = 1;
+function renderTable(pairs){
+  let rows = [...pairs];
+  if(sortMode==='new')       rows.sort((a,b)=>(b.pairCreatedAt||0)-(a.pairCreatedAt||0));
+  else if(sortMode==='gain') rows.sort((a,b)=>(b.priceChange?.h24??-999)-(a.priceChange?.h24??-999));
+  else                       rows.sort((a,b)=>((b.volume&&b.volume.h24)||0)-((a.volume&&a.volume.h24)||0));
 
-function renderTable(){
-  let rows = [...DATA.trending];
-  if(sortKey === 'd')        rows.sort((a,b)=>(b.d-a.d)*sortDir);
-  if(sortKey === 'h24')      rows.sort((a,b)=>(parseFloat(b.h24)-parseFloat(a.h24))*sortDir);
-  $('#tokenRows').innerHTML = rows.map(t=>{
-    const mint = mintFor('$'+t.sym);
+  $('#tokenRows').innerHTML = rows.slice(0,12).map(p=>{
+    const mint = p.baseToken.address;
+    const pc = (v)=> v==null ? '<span class="muted">—</span>' : `<span class="${v>=0?'green':'red'}">${v>=0?'+':''}${Number(v).toFixed(v>100?0:2)}%</span>`;
     return `
-    <a class="trow" href="https://dexscreener.com/solana/${mint}" target="_blank" rel="noopener">
-      <span><span class="tt-name">${t.name}</span><span class="tt-sym">$${t.sym}</span></span>
-      <span class="tc-created">${t.d}d</span>
-      ${pctCell(t.h1)}${pctCell(t.h6,'h6c')}${pctCell(t.h24)}
-      <span class="num vol volc">${t.vol}</span>
-      <span class="num mcap mcapt">${t.mcap}</span>
+    <a class="trow" href="${p.url||`https://dexscreener.com/solana/${mint}`}" target="_blank" rel="noopener">
+      <span><span class="tt-name">${esc(p.baseToken.name===p.baseToken.symbol?p.baseToken.name:p.baseToken.name)}</span><span class="tt-sym">$${esc(p.baseToken.symbol)}</span></span>
+      <span class="tc-created">${fmtAge(p.pairCreatedAt)}</span>
+      <span class="num">${pc(p.priceChange?.h1)}</span>
+      <span class="num h6c">${pc(p.priceChange?.h6)}</span>
+      <span class="num">${pc(p.priceChange?.h24)}</span>
+      <span class="num vol volc">${fmtUsd(p.volume&&p.volume.h24)}</span>
+      <span class="num mcap mcapt">${fmtUsd(Number(p.priceUsd)*(p.fdv||0))}</span>
     </a>`;
   }).join('');
 }
 
-function pctCell(v, extra=''){
-  const cls = v.startsWith('+') ? 'green' : v.startsWith('-') ? 'red' : 'muted';
-  return `<span class="num ${extra}"><span class="${cls}">${v}</span></span>`;
-}
+// ===== render: signals (derived from live momentum) =====
+function renderSignals(pairs, filter='hot'){
+  let list = [...pairs];
+  if(filter==='hot')      list.sort((a,b)=>((b.volume&&b.volume.h1)||0)-((a.volume&&a.volume.h1)||0));
+  if(filter==='new')      list.sort((a,b)=>(b.pairCreatedAt||0)-(a.pairCreatedAt||0));
+  if(filter==='projects') list.sort((a,b)=>((b.liquidity&&b.liquidity.usd)||0)-((a.liquidity&&a.liquidity.usd)||0));
+  if(filter==='people')   list.sort((a,b)=>((b.txns?.h24?.buys)||0)-((a.txns?.h24?.buys)||0));
 
-// ===== render: signals =====
-function renderSignals(filter='hot'){
-  let list = [...DATA.signals];
-  if(filter==='hot') list.sort((a,b)=>b.s-a.s);
-  if(filter==='new') list = list.filter(s=>s.isNew).concat(list.filter(s=>!s.isNew));
-  if(filter==='projects') list = list.filter(s=>s.type==='projects');
-  if(filter==='people')   list = list.filter(s=>s.type==='people');
-
-  $('#signalList').innerHTML = list.length ? list.map((s,i)=>`
+  $('#signalList').innerHTML = list.slice(0,8).map((p,i)=>{
+    const score = Math.max(1, Math.min(9, Math.round(((p.volume&&p.volume.h24)||0)/5e4)));
+    return `
     <li class="sig">
       <span class="sigrank">${String(i+1).padStart(2,'0')}</span>
-      <span class="sigavatar">${s.n.charAt(0)}</span>
+      <span class="sigavatar">${esc(p.baseToken.symbol.charAt(0))}</span>
       <div class="sig-info">
-        <div><span class="sig-name">${s.n}</span> <span class="sig-handle">${s.h}</span></div>
-        <div class="sig-desc">${s.d}</div>
+        <div><span class="sig-name">${esc(p.baseToken.name)}</span> <span class="sig-handle">$${esc(p.baseToken.symbol)}</span></div>
+        <div class="sig-desc">${fmtUsd((p.liquidity&&p.liquidity.usd)||0)} liq · ${fmtUsd(p.volume&&p.volume.h24)} vol 24h · ${(p.txns&&p.txns.h24?p.txns.h24.buys:0)} buys</div>
       </div>
       <div>
-        <div class="sig-score">+${s.s}</div>
-        <div class="sig-foll">${s.f} foll</div>
+        <div class="sig-score">+${score}</div>
+        <div class="sig-foll">${(p.priceChange&&p.priceChange.h24!=null)?((p.priceChange.h24>=0?'+':'')+Number(p.priceChange.h24).toFixed(1)+'%'):'—'}</div>
       </div>
-    </li>`).join('')
-    : `<li class="sig-empty muted">nothing here yet — check back soon.</li>`;
+    </li>`;
+  }).join('');
 }
 
 // ===== filters =====
 function applyFilters(){
-  const min = parseFloat($('#walletsMin').value);
-  const max = parseFloat($('#walletsMax').value);
-  const mcMin = parseFloat($('#mcapMin').value);   // in K
-  const mcMax = parseFloat($('#mcapMax').value);   // in K
-  const q = ($('#tickerFilter').value || '').toLowerCase().replace('$','');
-  const sq = ($('#searchInput').value || '').toLowerCase().replace('$','');
-
-  const parseK = (str)=>{
-    if(!str) return NaN;
-    const n = parseFloat(str.replace(/[^0-9.]/g,''));
-    if(isNaN(n)) return NaN;
-    return /m/i.test(str) ? n*1000 : n; // M→K
-  };
+  const num = (id)=>{ const v = parseFloat($(id).value); return isNaN(v)?null:v; };
+  const min = num('#walletsMin'), max = num('#walletsMax');
+  const mcMin = num('#mcapMin'), mcMax = num('#mcapMax');
+  const q = ($('#tickerFilter').value||'').toLowerCase().replace('$','');
+  const sq = ($('#searchInput').value||'').toLowerCase().replace('$','');
 
   document.querySelectorAll('#feedList .fitem').forEach(li=>{
     const w = parseInt(li.querySelector('.wbadge').textContent)||0;
-    const tokEl = li.querySelector('.ftoken');
-    const tok = (tokEl?tokEl.textContent:'').toLowerCase().replace('$','');
-    const mcRaw = li.querySelector('.fmcap').textContent;
-    const mcK = parseK(mcRaw);
-
+    const tok = li.querySelector('.ftoken').textContent.toLowerCase().replace('$','');
+    const mcK = parseInt(li.dataset.mcap)||0;
     let ok = true;
-    if(!isNaN(min)) ok = ok && w>=min;
-    if(!isNaN(max)) ok = ok && w<=max;
-    if(!isNaN(mcMin)) ok = ok && !isNaN(mcK) && mcK>=mcMin;
-    if(!isNaN(mcMax)) ok = ok && !isNaN(mcK) && mcK<=mcMax;
+    if(min!=null)   ok = ok && w>=min;
+    if(max!=null)   ok = ok && w<=max;
+    if(mcMin!=null) ok = ok && mcK>=mcMin;
+    if(mcMax!=null) ok = ok && mcK<=mcMax;
     if(q)  ok = ok && tok.includes(q);
     if(sq) ok = ok && tok.includes(sq);
     li.style.display = ok ? '' : 'none';
@@ -186,58 +153,43 @@ $('#pauseBtn').addEventListener('click',()=>{
   $('#pauseBtn').textContent = paused ? 'resume' : 'pause';
 });
 
-// ===== tabs: trending =====
+// ===== tabs =====
 document.querySelectorAll('[data-tab]').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('[data-tab]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    const tab = btn.dataset.tab;
-    if(tab==='new'){
-      sortKey='d'; sortDir=1;            // newest first
-    } else if(tab==='trending'){
-      sortKey='h24'; sortDir=-1;         // biggest gainers first
-    } else {
-      sortKey='d'; sortDir=-1;
-    }
-    renderTable();
+    sortMode = btn.dataset.tab==='trending' ? 'gain' : btn.dataset.tab==='new' ? 'new' : 'vol';
+    renderTable(window.__PAIRS__||[]);
   });
 });
-
-// ===== tabs: signals =====
 document.querySelectorAll('[data-sig]').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('[data-sig]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    renderSignals(btn.dataset.sig);
+    renderSignals(window.__PAIRS__||[], btn.dataset.sig);
   });
 });
 
-// ===== live simulation =====
-const NEW_TOKENS = ['$MOON','$GIGA','$ALPHA','$SIGMA','$WOJAK','$FLOKI','$BASED'];
-function pushFeedItem(){
-  if(paused) return;
-  const t = NEW_TOKENS[Math.floor(Math.random()*NEW_TOKENS.length)];
-  const item = {
-    w: Math.floor(Math.random()*14)+2,
-    token: t,
-    mcap: '$'+(Math.floor(Math.random()*900)+20)+'K',
-    t: 'now'
-  };
-  $('#feedList').insertAdjacentHTML('afterbegin', feedRowHTML(item,true));
-  const first = $('#feedList .fitem');
-  hydrateBuyRow(first, item.token);
-  // bump timestamps of older rows
-  document.querySelectorAll('#feedList .ftime').forEach((el,i)=>{
-    if(i===0) return;
-    const cur = el.textContent;
-    if(cur==='now'){ el.textContent='1m'; return; }
-    const m = parseInt(cur);
-    if(!isNaN(m) && m<15) el.textContent = (m+1)+'m';
-  });
-  const rows = document.querySelectorAll('#feedList .fitem');
-  if(rows.length>14) rows[rows.length-1].remove();
-  applyFilters();
+// ===== live refresh =====
+async function refresh(){
+  if(paused && window.__PAIRS__) return;
+  try{
+    const addrs = await DS.universe();
+    const pairs = await DS.pairs(addrs);
+    if(!pairs.length) throw new Error('empty');
+    window.__PAIRS__ = pairs;
+    renderCalls(pairs);
+    renderFeed(pairs);
+    renderTable(pairs);
+    renderSignals(pairs, document.querySelector('[data-sig].active')?.dataset.sig || 'hot');
+    applyFilters();
+    const el = $('#updatedAt');
+    if(el) el.textContent = 'just now';
+  }catch(err){
+    const el = $('#updatedAt');
+    if(el && !window.__PAIRS__) el.textContent = 'reconnecting…';
+  }
 }
-setInterval(pushFeedItem, 8000);
 
-renderCalls(); renderFeed(); renderTable(); renderSignals();
+refresh();
+setInterval(refresh, 60000); // dexscreener rate limit friendly
