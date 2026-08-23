@@ -47,11 +47,19 @@ ol,ul{list-style:none}
   border-bottom:1px solid var(--line);
 }
 .logo{font-weight:600;font-size:15px}
-.topnav{display:flex;gap:16px}
+.topnav{display:flex;gap:16px;flex-wrap:wrap}
 .topnav a{font-size:12px;color:var(--muted)}
 .topnav a:hover{color:var(--ink)}
+.topnav a.active{color:var(--ink);font-weight:600;border-bottom:2px solid var(--black);padding-bottom:2px}
 .topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-.search{width:220px}
+.search{width:200px}
+
+@media (max-width:720px){
+  .topbar{flex-wrap:wrap;gap:10px;padding:14px 16px}
+  .topnav{order:-1;width:100%;gap:14px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .topbar-right{width:100%;margin-left:0}
+  .search{flex:1;width:auto}
+}
 
 /* buttons */
 .btn{

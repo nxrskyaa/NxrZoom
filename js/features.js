@@ -232,8 +232,8 @@ async function loadNft(){
       </li>`;
     }).join('') : '<li class="muted pad">no recent marketplace activity — quiet market.</li>';
 
-    // launchpad
-    $f('#nftLaunch').innerHTML = (d.launchpad||[]).length ? (d.launchpad).map(c=>`
+    // launchpad (only exists on nft page)
+    if($f('#nftLaunch')) $f('#nftLaunch').innerHTML = (d.launchpad||[]).length ? (d.launchpad).map(c=>`
       <a class="nftcard lp" href="https://magiceden.io/collections/solana/${c.symbol}" target="_blank" rel="noopener">
         ${c.image?`<img src="/api/img?url=${encodeURIComponent(c.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
         <div class="nftc-info">
@@ -248,3 +248,50 @@ async function loadNft(){
 
 loadNft();
 setInterval(loadNft, 45000);
+
+// ===== DEGEN FREE MINTS (ink & robinhood via opensea) =====
+let degenData = null;
+let degenChain = 'ink';
+
+function renderDegen(){
+  if(!degenData || !$f('#degenGrid')) return;
+  const list = degenChain==='ink' ? (degenData.ink||[]) : (degenData.robinhood||[]);
+  $f('#degenGrid').innerHTML = list.length ? list.map(c=>{
+    const isFree = c.floorUsd===0 || c.floorUsd==null;
+    const stage = c.anyActiveStage ? '<span class="sweep-tag">LIVE MINT</span>' :
+      c.nextStageStart ? `<span class="na-time">next window ${new Date(c.nextStageStart).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</span>` : '';
+    return `
+    <a class="nftcard" href="https://opensea.io/collection/${c.slug}" target="_blank" rel="noopener">
+      ${c.image?`<img src="/api/img?url=${encodeURIComponent(c.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
+      <div class="nftc-info">
+        <span class="nftc-name">${esc2(c.name)}${c.verified?' <span class="green">✓</span>':''} ${stage}</span>
+        <span class="nftc-floor">${isFree?'<span class="green">free / near-free</span>':'floor ~$'+Number(c.floorUsd).toFixed(0)}</span>
+        ${c.supply?`<span class="nftc-vol">supply ${c.supply.toLocaleString('en-US')}</span>`:''}
+      </div>
+    </a>`;
+  }).join('') : `<p class="muted pad">no free/near-free mints on ${degenChain} right now — check back.</p>`;
+}
+
+document.querySelectorAll('[data-chain]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('[data-chain]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    degenChain = btn.dataset.chain;
+    renderDegen();
+  });
+});
+
+async function loadDegen(){
+  if(!$f('#degenGrid')) return;
+  try{
+    const r = await fetch('/api/degen');
+    const d = await r.json();
+    if(!r.ok) throw new Error();
+    degenData = d;
+    renderDegen();
+  }catch(e){
+    if($f('#degenGrid')) $f('#degenGrid').innerHTML = '<p class="muted pad">opensea radar unavailable — retry later.</p>';
+  }
+}
+loadDegen();
+setInterval(loadDegen, 180000);

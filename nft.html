@@ -27,7 +27,6 @@
       alerts<span class="badge" id="alertBadge" hidden></span>
     </button>
     <input id="searchInput" class="search" type="text" placeholder="search ticker / contract…" autocomplete="off">
-    <button class="btn btn-primary" id="connectBtn">connect wallet</button>
   </div>
 </header>
 
@@ -53,6 +52,14 @@
     <!-- LAUNCHPAD -->
     <h3 class="subhead muted">launchpad — minting now</h3>
     <div class="nftgrid" id="nftLaunch"><p class="muted pad">loading…</p></div>
+
+    <!-- DEGEN FREE MINT RADAR -->
+    <h3 class="subhead muted">degen free mints — ink &amp; robinhood <span class="na-time">(opensea)</span></h3>
+    <div class="tabs" style="margin-bottom:10px">
+      <button class="tab active" data-chain="ink">ink</button>
+      <button class="tab" data-chain="robinhood">robinhood</button>
+    </div>
+    <div class="nftgrid nftgrid-w" id="degenGrid"><p class="muted pad">loading…</p></div>
   </section>
 
 </main>
