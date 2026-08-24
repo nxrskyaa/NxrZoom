@@ -55,10 +55,14 @@ ol,ul{list-style:none}
 .search{width:200px}
 
 @media (max-width:720px){
-  .topbar{flex-wrap:wrap;gap:10px;padding:14px 16px;border-bottom:none}
+  .topbar{flex-wrap:wrap;gap:10px;padding:12px 16px;border-bottom:none}
   .topnav{display:none}
   .topbar-right{width:100%;margin-left:0}
   .search{flex:1;width:auto}
+  /* tighter hero on mobile — content first */
+  .hero{padding:28px 0 24px}
+  .hero-title{font-size:30px !important;line-height:1.15}
+  .hero-sub{font-size:13px}
 
   /* bottom tab bar — native app style */
   .tabbar{

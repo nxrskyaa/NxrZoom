@@ -39,15 +39,7 @@ const acts = (sym, n=10) => cached('ac:'+sym+':'+n, 30000, async ()=>{
   catch(e){ return []; }
 });
 
-const launchpad = () => cached('lp', 300000, async ()=>{
-  try{
-    const d = await j(`${BASE}/launchpad/collections?offset=0&limit=20`);
-    return (d||[]).slice(0,8).map(c=>({
-      symbol:c.symbol, name:c.name, image:c.image,
-      desc:(c.description||'').slice(0,90)
-    }));
-  }catch(e){ return []; }
-});
+const launchpad = () => cached('lp', 300000, async ()=>[]); // removed — solana launchpad dropped per user request
 
 export default {
   WATCH,

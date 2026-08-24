@@ -9,6 +9,7 @@ function renderCalls(pairs){
     .slice(0,6);
   $('#topCalls').innerHTML = ranked.map((p,i)=>{
     const mint = p.baseToken.address;
+    const buys = p.txns && p.txns.m5 ? p.txns.m5.buys : 0;
     const x = multOf(p.priceChange.h24).toFixed(2)+'x';
     const pct = (p.priceChange.h24>=0?'+':'')+Number(p.priceChange.h24).toFixed(1)+'%';
     const cap = `${fmtUsd(mcapOf(p))} · ${fmtUsd((p.liquidity&&p.liquidity.usd)||0)} liq`;
@@ -18,8 +19,9 @@ function renderCalls(pairs){
     <div class="call">
       <span class="rank">${String(i+1).padStart(2,'0')}</span>
       <div>
-        <div class="call-token">${esc(p.baseToken.symbol)}</div>
+        <div class="call-token">${esc(p.baseToken.symbol)} ${caChip(mint)}</div>
         <div class="call-meta">${fmtAge(p.pairCreatedAt)} · ${cap}</div>
+        <div class="call-smart">smart money in: <b>${buys} wallets</b> (5m)</div>
       </div>
       <div>
         <div class="call-x">${x}</div>

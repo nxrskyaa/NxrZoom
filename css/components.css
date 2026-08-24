@@ -18,6 +18,17 @@
 /* buy links row inside call card */
 .call-links{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 
+.call-smart{font-size:10px;color:var(--muted);margin-top:2px}
+.call-smart b{color:var(--ink)}
+.cacopy{
+  display:inline-flex;align-items:center;gap:2px;
+  font-size:9px;color:var(--muted);background:none;
+  border:1px solid var(--line);border-radius:3px;
+  padding:1px 4px;margin-left:6px;vertical-align:1px;cursor:pointer;
+}
+.cacopy:hover{color:var(--ink);border-color:var(--ink)}
+.cacopy.done{color:#0a7d38;border-color:#0a7d38}
+
 /* ===== live feed ===== */
 .feedlist{border-top:1px solid var(--line)}
 .fitem{border-bottom:1px solid var(--line-soft)}
