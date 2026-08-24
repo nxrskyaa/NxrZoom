@@ -31,7 +31,20 @@ export default async function handler(req, res){
     const list = addrs.slice(0,28);
     let pairs = [];
     if(list.length){
-      pairs = await j(BASE+'/tokens/v1/solana/'+list.join(',')).catch(()=>[]);
+      // tokens/v1 batch endpoint flaky lately — retry once then fall back to per-token search
+      try{
+        pairs = await j(BASE+'/tokens/v1/solana/'+list.join(','));
+      }catch(e){
+        const chunks = [];
+        for(let i=0;i<list.length && i<12;i+=3){
+          const chunk = list.slice(i,i+3);
+          try{
+            const d = await j(BASE+'/latest/dex/search?q='+chunk[0]);
+            chunks.push(...((d&&d.pairs)||[]));
+          }catch(_){}
+        }
+        pairs = chunks;
+      }
     }
     // keep most liquid pair per token
     const best = {};
