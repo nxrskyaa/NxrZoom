@@ -1,39 +1,15 @@
 // nxrzoom_ — dexscreener live data layer (public API, no key)
 const DS = {
+  // server-side proxy with cache — direct client calls were getting throttled
   async json(url){
     const r = await fetch(url);
     if(!r.ok) throw new Error('http '+r.status);
     return r.json();
   },
-  // gather fresh solana tokens from boosts + new profiles
-  async universe(){
-    const [top, latest, profiles] = await Promise.all([
-      this.json('https://api.dexscreener.com/token-boosts/top/v1').catch(()=>[]),
-      this.json('https://api.dexscreener.com/token-boosts/latest/v1').catch(()=>[]),
-      this.json('https://api.dexscreener.com/token-profiles/latest/v1').catch(()=>[])
-    ]);
-    const seen = new Set();
-    const out = [];
-    for(const t of [...top, ...latest, ...profiles]){
-      if(t.chainId === 'solana' && t.tokenAddress && !seen.has(t.tokenAddress)){
-        seen.add(t.tokenAddress);
-        out.push(t.tokenAddress);
-      }
-    }
-    return out.slice(0, 28);
-  },
-  // batch lookup pairs, keep most liquid pair per token
-  async pairs(addrs){
-    if(!addrs.length) return [];
-    const data = await this.json('https://api.dexscreener.com/tokens/v1/solana/' + addrs.join(','));
-    const best = {};
-    for(const p of (data || [])){
-      const a = p.baseToken && p.baseToken.address;
-      if(!a) continue;
-      const liq = (p.liquidity && p.liquidity.usd) || 0;
-      if(!best[a] || liq > ((best[a].liquidity && best[a].liquidity.usd) || 0)) best[a] = p;
-    }
-    return Object.values(best);
+  // one cached server call returns ready pairs (throttle-proof)
+  async pairs(){
+    const d = await this.json('/api/feed');
+    return d.pairs || [];
   }
 };
 

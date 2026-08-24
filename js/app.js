@@ -219,8 +219,7 @@ function renderStats(pairs){
 async function refresh(){
   if(paused && window.__PAIRS__) return;
   try{
-    const addrs = await DS.universe();
-    const pairs = await DS.pairs(addrs);
+    const pairs = await DS.pairs();
     if(!pairs.length) throw new Error('empty');
     window.__PAIRS__ = pairs;
     if($('#topCalls'))  renderCalls(pairs);
