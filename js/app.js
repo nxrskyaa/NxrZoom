@@ -237,4 +237,5 @@ async function refresh(){
 }
 
 refresh();
-setInterval(refresh, 60000); // dexscreener rate limit friendly
+setInterval(refresh, 60000); // normal cadence
+setInterval(()=>{ if(!window.__PAIRS__) refresh(); }, 20000); // retry faster while empty
