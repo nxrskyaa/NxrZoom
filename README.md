@@ -12,6 +12,9 @@ live smart money feed — track what top wallets buy on solana before the crowd.
 - **alpha signals** — ranked insiders, filter hot/new/projects/people
 - **telegram alerts** — push notifications via bot
 - **filters** — wallets in range, mcap at call range, ticker search
+- **wallet quality radar** — inspect a Solana wallet's public RPC footprint and classify it as core / experimental / watch using sample size, recent activity, token diversity, position spread, and capital
+
+The wallet score is intentionally a transparent heuristic. It does not claim PnL or “smart money” status until an indexed trade-history source is added; the UI lists those limitations instead of inventing precision.
 
 ## stack
 

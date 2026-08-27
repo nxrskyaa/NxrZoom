@@ -5,7 +5,8 @@
     { "source": "/trending", "destination": "/trending.html" },
     { "source": "/signals", "destination": "/signals.html" },
     { "source": "/nft", "destination": "/nft.html" },
-    { "source": "/scan", "destination": "/scan.html" }
+    { "source": "/scan", "destination": "/scan.html" },
+    { "source": "/wallet", "destination": "/wallet.html" }
   ],
   "headers": [
     {

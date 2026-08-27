@@ -230,6 +230,18 @@
 .monoaddr{font-family:'IBM Plex Mono',monospace}
 .holder-row{grid-template-columns:minmax(140px,2fr) repeat(3,minmax(64px,.9fr))!important}
 
+/* ===== wallet quality radar ===== */
+.wallet-form{display:flex;gap:8px;max-width:680px}.wallet-form input{flex:1;font-family:var(--font-mono)}
+.wallet-note{font-size:10px;color:var(--muted);margin-top:10px}
+.wallet-result{margin-top:22px}.wallet-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:16px 0}
+.wallet-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}.wallet-address{font-size:24px;font-weight:500;margin:3px 0}
+.wallet-tier{display:flex;align-items:baseline;gap:5px;text-transform:uppercase;font-size:11px;padding:7px 10px;border:1px solid var(--line)}
+.wallet-tier strong{font-size:25px;color:var(--green)}.wallet-tier.core{border-color:var(--green)}.wallet-tier.experimental strong{color:#9a7012}.wallet-tier.watch strong{color:var(--red)}
+.wallet-tier small{color:var(--muted)}.wallet-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.wallet-score,.wallet-facts{padding:16px}.wallet-score h3,.wallet-facts h3{font-size:12px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px}
+.wscore-row{display:grid;grid-template-columns:110px 1fr 38px;align-items:center;gap:10px;font-size:11px;margin:11px 0}.wscore-row b{text-align:right;font-size:10px}.wbar{height:5px;background:var(--line)}.wbar i{display:block;height:100%;background:var(--green)}
+.wallet-facts>div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding:9px 0;font-size:11px}.wallet-facts>div span{color:var(--muted)}
+.wallet-limit{border:1px solid var(--line);padding:13px 16px;margin-top:10px;font-size:11px;color:var(--muted)}.wallet-limit b{color:var(--ink)}.wallet-limit ul{margin-top:6px;padding-left:16px;list-style:disc}.wallet-limit li{margin:3px 0}
+
 /* ===== footer ===== */
 .footer{border-top:1px solid var(--line);margin-top:56px}
 .foot-inner{display:flex;align-items:center;gap:14px;padding:22px 20px}
@@ -257,4 +269,5 @@
   .buyrow{padding-left:4px}
   .hero{padding:40px 0 32px}
   .tg-btn{margin-left:0}
+  .wallet-grid{grid-template-columns:1fr}.wallet-head{align-items:flex-start;gap:12px;flex-direction:column}.wallet-address{font-size:19px}.wallet-form{flex-direction:column}.wallet-form .btn{justify-content:center}
 }
