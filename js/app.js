@@ -21,7 +21,7 @@ function renderCalls(pairs){
       <div>
         <div class="call-token">${esc(p.baseToken.symbol)} ${caChip(mint)}</div>
         <div class="call-meta">${fmtAge(p.pairCreatedAt)} · ${cap}</div>
-        <div class="call-smart">smart money in: <b>${buys} wallets</b> (5m)</div>
+        <div class="call-smart">smart money activity: <b>${buys} buy txns</b> (5m)</div>
       </div>
       <div>
         <div class="call-x">${x}</div>
