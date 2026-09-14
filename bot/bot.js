@@ -7,6 +7,7 @@ import { smartScan, smartCard, POOLS as SMART_POOLS, scoreLaunch } from './smart
 import { rhmapScan, screenMemes, memeCard, boardCard as rhBoardCard } from './rhmap.js';
 import { taRead, taReadGmgn } from './ta.js';
 import { gmgnMap, gmgnGates, gmgnLines } from './gmgn.js';
+import { poolScan, poolCard } from './pool.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -549,4 +550,20 @@ setTimeout(() => {
   setInterval(() => smartCycle(alertTarget()).catch(e => console.error('smart cycle:', e.message)), ARC_POLL_MIN * 60000);
 }, (ARC_POLL_MIN * 60000) / 2);
 
+// pool desk: cross-chain pool screener (sol/bsc/robinhood/arc), tiap 5 menit
+async function poolCycle(tgt) {
+  try {
+    const alerts = await poolScan();
+    for (const t of alerts) {
+      try {
+        await send(tgt.chat, `💠 <b>POOL ${t.chain === 'robinhood' ? 'RH' : t.chain.toUpperCase()}</b> · NxrLabs\n\n${poolCard(t)}\n📈 <a href="${t.gmgnUrl}">gmgn</a>`, {
+          reply_markup: { inline_keyboard: [[{ text: '⧉ Copy CA', copy_text: { text: t.addr } }]] },
+        });
+        console.log(`pool alert: ${t.chain} $${t.sym} 5m $${Math.round(t.vol5m / 1000)}k fees24 $${Math.round(t.fees24)}`);
+      } catch (e) { console.error('pool send:', e.message); }
+    }
+  } catch (e) { console.error('pool cycle:', e.message); }
+}
+setTimeout(() => poolCycle(alertTarget()).catch(e => console.error('pool first:', e.message)), 42000);
+setInterval(() => poolCycle(alertTarget()).catch(e => console.error('pool cycle:', e.message)), 300000);
 pollLoop();
