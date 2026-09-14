@@ -3,7 +3,8 @@
 import { scan, pickAlerts, buildRecap, CFG, levelOf, fmtShort } from './engine.js';
 import { enrich } from './enrich.js';
 import { arcScan, launchCard, socialLinks, moverCard, boardCard, fmtUsd } from './arc.js';
-import { smartScan, smartCard, POOLS as SMART_POOLS } from './smart.js';
+import { smartScan, smartCard, POOLS as SMART_POOLS, scoreLaunch } from './smart.js';
+import { rhScan, rhCard } from './rh.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -141,20 +142,33 @@ async function arcCycle(tgt, opts = {}) {
   const now = Date.now();
   let sent = 0;
 
-  // new launches (max 3/cycle, skip if older than 3h worth of unknowns)
-  const fresh = r.newLaunches.map(t => r.launches.find(l => l.token === t)).filter(Boolean)
-    .sort((a, b) => (b.fdvUsd ?? 0) - (a.fdvUsd ?? 0)).slice(0, 3);
+  // SCREENING: launch baru di-score berdasarkan watch wallets yang masuk.
+  // Gak semua launch dibagitin — cuma yang ada conviksi smartmoney.
+  const fresh = r.newLaunches.map(t => r.launches.find(l => l.token === t)).filter(Boolean).slice(0, 6);
+  const scored = [];
   for (const l of fresh) {
+    let sc = { score: 0, tiers: {}, wallets: 0, hits: [] };
+    try {
+      const fromB = l.block ? Math.max(l.block, (r.head || 0) - 480000) : (r.head || 0) - 480000;
+      sc = await scoreLaunch(l, fromB, r.head || fromB);
+    } catch (e) { console.error('scoreLaunch:', e.message); }
+    scored.push({ l, sc });
     if (arcAlerts[l.token] && now - arcAlerts[l.token] < 6 * 3600000) continue;
+    // gate: skor ≥2.5 ATAU ≥2 wallet watchlist masuk → layak post
+    if (sc.score < 2.5 && sc.wallets < 2) continue;
     arcAlerts[l.token] = now;
+    const mixTxt = Object.entries(sc.tiers).map(([, t]) => t).join(', ');
+    const smartLine = sc.wallets ? `smart entry: ${Object.values(sc.tiers).filter(t => t === 'GACOR').length} gacor · ${Object.values(sc.tiers).filter(t => t === 'DIAMOND').length} diamond (score ${sc.score})` : '';
     try {
       const links = socialLinks(l);
-      await send(tgt.chat, `🟠 <b>ARC LAUNCH</b> · NxrLabs\n\n${launchCard(l, r.stocks)}${links ? '\n' + links : ''}`, {
+      await send(tgt.chat, `🟠 <b>ARC LAUNCH</b> · NxrLabs\n\n${launchCard(l, r.stocks)}${smartLine ? `\n<i>${esc(smartLine)}</i>` : ''}${links ? '\n' + links : ''}`, {
         reply_markup: { inline_keyboard: [[{ text: '⧉ Copy CA', copy_text: { text: l.token } }, { text: '🔎 Explorer', url: `https://arc-scan.org/token/${l.token}` }]] },
       });
       sent++;
     } catch (e) { console.error('arc launch send:', e.message); }
   }
+  const skipped = scored.filter(s => s.sc.score < 2.5 && s.sc.wallets < 2).length;
+  if (skipped) console.log(`launch screening: ${skipped} skipped (no smartmoney), ${scored.length - skipped} passed`);
 
   // movers: chg >= 15% over tracked window, cooldown 6h per token, max 2/cycle
   const mv = r.movers.filter(l => !arcAlerts['mv:' + l.token] || now - arcAlerts['mv:' + l.token] > 6 * 3600000).slice(0, 2);
@@ -451,4 +465,19 @@ setTimeout(() => {
   smartCycle(alertTarget()).catch(e => console.error('smart first:', e.message));
   setInterval(() => smartCycle(alertTarget()).catch(e => console.error('smart cycle:', e.message)), ARC_POLL_MIN * 60000);
 }, (ARC_POLL_MIN * 60000) / 2);
+
+// rh desk: bridge inflow screener, tiap 10 menit (first run baseline, no alert)
+async function rhCycle(tgt, quiet = false) {
+  const r = await rhScan();
+  if (r.error) { console.error('rh scan:', r.error); return; }
+  if (quiet) { console.log(`rh baseline: ${r.tracked} stocks tracked, head ${r.head}`); return; }
+  for (const a of r.alerts) {
+    try {
+      await send(tgt.chat, `🟣 <b>RH BRIDGE</b> · NxrLabs\n\n${rhCard(a)}`, {});
+      console.log(`rh alert: $${a.sym} in $${a.inflowUsd.toFixed(0)}`);
+    } catch (e) { console.error('rh send:', e.message); }
+  }
+}
+setTimeout(() => rhCycle(alertTarget(), true).catch(e => console.error('rh first:', e.message)), 25000);
+setInterval(() => rhCycle(alertTarget()).catch(e => console.error('rh cycle:', e.message)), ARC_POLL_MIN * 120000);
 pollLoop();

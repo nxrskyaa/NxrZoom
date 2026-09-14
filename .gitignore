@@ -6,3 +6,8 @@ bot/mute.json
 bot/channel.json
 bot/rug-cache.json
 bot/whale-cache.json
+bot/arc-state.json
+bot/arc-alerts.json
+bot/smart-state.json
+bot/rh-state.json
+bot/baseline-long-trades.json

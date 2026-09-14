@@ -85,6 +85,119 @@ function humanOf(sw) {
 const short = a => a.slice(0, 8) + '…' + a.slice(-4);
 const fmtA = n => Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.abs(n) >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : n.toFixed(1);
 
+// ── wallet behavior classifier (paperhand vs gacor) ─────────
+// FIFO match buys→sells, avg hold time, exit quality (jual deket top lokal?)
+import { readFileSync as _rf } from 'fs';
+const BASELINE_FILE = join(HERE, 'baseline-long-trades.json');
+let PROFILES = null; // wallet → {trades:[{side,ts,px,tokAmt}]} dari baseline + live
+
+function loadProfiles() {
+  if (PROFILES) return PROFILES;
+  PROFILES = {};
+  try {
+    const b = JSON.parse(_rf(BASELINE_FILE, 'utf8'));
+    for (const t of b.trades || []) {
+      (PROFILES[t.w] ||= []).push({ side: (t.side || '').toLowerCase(), ts: t.ts, px: t.px, tok: t.long, crcl: t.crcl });
+    }
+  } catch {}
+  return PROFILES;
+}
+function addTrade(w, side, ts, px, tokAmt, crclVal) {
+  const p = loadProfiles();
+  (p[w] ||= []).push({ side, ts, px, tok: tokAmt, crcl: crclVal });
+  if (p[w].length > 400) p[w].splice(0, p[w].length - 400); // jaga memori
+}
+
+// px timeline untuk exit quality (dari swap stream, ts→px CRCL/LONG)
+let PXTL = []; // [{ts, px}]
+export function feedPxTimeline(rows) { PXTL = rows; }
+const pxAt = ts => { // max px dalam [ts, ts+2h] — seberapa bagus dia jual vs pump sesudahnya
+  if (!PXTL.length) return null;
+  let mx = 0;
+  for (const r of PXTL) { if (r.ts >= ts - 600 && r.ts <= ts + 7200) mx = Math.max(mx, r.px); }
+  return mx || null;
+};
+
+export function classifyWallet(w) {
+  const p = loadProfiles();
+  const tt = p[w];
+  if (!tt || tt.length < 2) return { tier: 'MID', note: 'data kurang' };
+  // FIFO
+  const buys = [];
+  let holdSum = 0, holdN = 0, exitSum = 0, exitN = 0, net = 0, inv = 0;
+  for (const t of tt.sort((a, b) => a.ts - b.ts)) {
+    if (t.side === 'buy') { buys.push(t); inv += t.tok; net += t.crcl; }
+    else {
+      inv -= t.tok; net -= t.crcl;
+      let left = t.tok;
+      while (left > 0 && buys.length) {
+        const b = buys[0];
+        const take = Math.min(left, b.tok);
+        holdSum += (t.ts - b.ts) * take; holdN += take;
+        const mx = pxAt(t.ts);
+        if (mx && t.px) { exitSum += (t.px / mx); exitN++; }
+        b.tok -= take; left -= take;
+        if (b.tok <= 1e-9) buys.shift();
+      }
+    }
+  }
+  const avgHoldMin = holdN > 0 ? (holdSum / holdN) / 60000 : null;
+  const exitScore = exitN > 0 ? exitSum / exitN : null;
+  // klasifikasi (exitScore null kalau px timeline belum keisi → pakai hold+net saja)
+  let tier = 'MID';
+  const canExit = exitScore != null;
+  if (avgHoldMin != null && avgHoldMin < 45) {
+    // flip cepat: paperhand KECUALI exit-nya terbukti bagus (jual deket top, profit)
+    if (canExit && net > 0 && exitScore >= 0.8) tier = 'GACOR';
+    else if (canExit && exitScore < 0.75) tier = 'PAPERHAND';
+    else if (!canExit && net > 0) tier = 'MID';
+    else tier = 'PAPERHAND';
+  }
+  else if (net > 0 && avgHoldMin != null && avgHoldMin >= 120 && (!canExit || exitScore >= 0.7)) tier = 'GACOR';
+  else if (avgHoldMin != null && avgHoldMin >= 240) tier = 'DIAMOND';
+  return { tier, avgHoldMin: avgHoldMin != null ? Math.max(1, Math.round(avgHoldMin)) : null, exitScore: exitScore != null ? +exitScore.toFixed(2) : null, net: +net.toFixed(2), inv: Math.round(inv) };
+}
+
+export const TIER_W = { GACOR: 2.0, DIAMOND: 1.5, MID: 1.0, PAPERHAND: 0.4 };
+
+// ── launch scorer: wallet watchlist masuk token baru? ────────
+// l = launch object {pool, token} — orientasi narrative token di-resolve dari token0 pool
+export async function scoreLaunch(l, fromBlock, toBlock) {
+  const hits = [];
+  // token0 pool vs kontrak launch → narrative di t0 atau t1
+  let tokIsT0 = true;
+  const t0 = await rpc('eth_call', [{ to: l.pool, data: '0x0dfe1681' }, 'latest']);
+  if (t0 && t0 !== '0x') tokIsT0 = ('0x' + t0.slice(-40).toLowerCase()) === (l.token || '').toLowerCase();
+  let f = fromBlock;
+  while (f <= toBlock) {
+    const t = Math.min(f + 9999, toBlock);
+    const logs = await rpc('eth_getLogs', [{ address: l.pool, fromBlock: '0x' + f.toString(16), toBlock: '0x' + t.toString(16) }]);
+    if (logs) {
+      for (const lg of logs) {
+        if (lg.topics[0] !== SWAP) continue;
+        const sw = decodeSwap(lg);
+        const w = humanOf(sw);
+        if (!w || !WATCH.includes(w)) continue;
+        const tokRaw = tokIsT0 ? sw.a0 : sw.a1;
+        const othRaw = tokIsT0 ? sw.a1 : sw.a0;
+        const tokAmt = Number(tokRaw < 0n ? -tokRaw : tokRaw) / 1e18;
+        const othAmt = Number(othRaw < 0n ? -othRaw : othRaw) / 1e18;
+        const side = tokRaw < 0n ? 'buy' : 'sell'; // terima narrative = buy
+        hits.push({ w, side, tok: tokAmt, crcl: othAmt, ts: sw.ts });
+      }
+      f = t + 1;
+    } else break; // rpc gagal — stop
+  }
+  const tiers = {};
+  let score = 0;
+  for (const h of hits) {
+    if (!tiers[h.w]) tiers[h.w] = classifyWallet(h.w).tier;
+    if (h.side === 'buy') score += TIER_W[tiers[h.w]] || 1;
+    else score -= (TIER_W[tiers[h.w]] || 1) * 0.5; // jual = ngurangi skor
+  }
+  return { hits, tiers, score: +score.toFixed(1), wallets: Object.keys(tiers).length };
+}
+
 // ── cycle ────────────────────────────────────────────────────
 // scan semua pool, decode swap oleh watch wallets sejak lastBlock.
 // return { alerts:[{sym, lines, crcl, token, nWallets}], scanned }
@@ -104,6 +217,7 @@ export async function smartScan(opts = {}) {
 
   const byToken = {}; // sym → { lines:[], crcl:0, wallets:Set, token }
   let scanned = 0;
+  const pxRows = [];
 
   for (const [sym, cfg] of Object.entries(POOLS)) {
     const from = state.lastBlock[sym] ? state.lastBlock[sym] + 1 : head - 15000; // first run: ~4 jam
@@ -120,6 +234,20 @@ export async function smartScan(opts = {}) {
     for (const l of logs) {
       if (l.topics[0] !== SWAP) continue;
       const sw = decodeSwap(l);
+
+      // px timeline (harga token narasi dalam CRCL) — dari SEMUA swap
+      const tokRaw = tokIsT0 ? sw.a0 : sw.a1;
+      const othRaw = tokIsT0 ? sw.a1 : sw.a0;
+      const tokAbs = tokRaw < 0n ? -tokRaw : tokRaw;
+      const othAbs = othRaw < 0n ? -othRaw : othRaw;
+      const tokAmtAll = Number(tokAbs) / 1e18;
+      const othSymAll = tokIsT0 ? cfg.t1 : cfg.t0;
+      const othAmtAll = Number(othAbs) / 1e18;
+      if (othSymAll === 'CRCL' && tokAmtAll > 0) {
+        pxRows.push({ ts: sw.ts, px: othAmtAll / tokAmtAll });
+        if (pxRows.length > 20000) pxRows.shift();
+      }
+
       const w = humanOf(sw);
       if (!w || !WATCH.includes(w)) continue;
 
@@ -128,23 +256,28 @@ export async function smartScan(opts = {}) {
       const payTok = tokIsT0 ? sw.a0 > 0n : sw.a1 > 0n;
       if (!recvTok && !payTok) continue;
       const side = recvTok ? 'buy' : 'sell';
-      const tokAmt = Number(tokIsT0 ? (sw.a0 < 0n ? -sw.a0 : sw.a0) : (sw.a1 < 0n ? -sw.a1 : sw.a1)) / 1e18;
+      const tokAmt = tokAmtAll;
       const otherSym = tokIsT0 ? cfg.t1 : cfg.t0;
-      const otherRaw = tokIsT0 ? (sw.a1 < 0n ? -sw.a1 : sw.a1) : (sw.a0 < 0n ? -sw.a0 : sw.a0);
-      const otherAmt = Number(otherRaw) / 1e18;
+      const otherAmt = othAmtAll;
 
       // nilai dalam CRCL
       let crclVal = 0;
       if (otherSym === 'CRCL') crclVal = otherAmt;
       else if (otherSym === 'LONG') crclVal = otherAmt * 0.000128;
+      const tokPx = tokAmt > 0 && crclVal > 0 ? crclVal / tokAmt : 0;
+
+      // rekam ke profil wallet (buat classifier)
+      addTrade(w, side, sw.ts, tokPx, tokAmt, crclVal);
 
       if (!byToken[sym]) byToken[sym] = { lines: [], crcl: 0, wallets: new Set(), token: cfg.token, buys: 0, sells: 0 };
       const b = byToken[sym];
       b.wallets.add(w);
-      if (side === 'buy') { b.buys++; b.crcl += crclVal; b.lines.push(`${short(w)} buy ${fmtA(tokAmt)} ${sym}${crclVal ? ` (${crclVal.toFixed(2)} CRCL)` : ''}`); }
-      else { b.sells++; b.crcl -= crclVal; b.lines.push(`${short(w)} sell ${fmtA(tokAmt)} ${sym}${crclVal ? ` (${crclVal.toFixed(2)} CRCL)` : ''}`); }
+      const tier = classifyWallet(w).tier;
+      if (side === 'buy') { b.buys++; b.crcl += crclVal; b.lines.push(`${short(w)} ${tier} buy ${fmtA(tokAmt)} ${sym}${crclVal ? ` (${crclVal.toFixed(2)} CRCL)` : ''}`); }
+      else { b.sells++; b.crcl -= crclVal; b.lines.push(`${short(w)} ${tier} sell ${fmtA(tokAmt)} ${sym}${crclVal ? ` (${crclVal.toFixed(2)} CRCL)` : ''}`); }
     }
   }
+  feedPxTimeline(pxRows);
   saveState(state);
 
   // build alerts: buys>sells & (nilai ≥0.5 CRCL atau ≥2 wallet), cooldown 4 jam
@@ -156,7 +289,10 @@ export async function smartScan(opts = {}) {
     if (!hot) continue;
     if (state.alertTs[sig] && now - state.alertTs[sig] < 4 * 3600000) continue;
     state.alertTs[sig] = now;
-    alerts.push({ sym, ...b, wallets: b.wallets.size, lines: b.lines.slice(0, 6) });
+    // agregasi tier
+    const mix = {};
+    for (const w of b.wallets) { const t = classifyWallet(w).tier; mix[t] = (mix[t] || 0) + 1; }
+    alerts.push({ sym, ...b, wallets: b.wallets.size, lines: b.lines.slice(0, 6), mix });
   }
   saveState(state);
   alerts.sort((a, b) => (b.crcl || 0) - (a.crcl || 0) || b.wallets - a.wallets);
@@ -165,16 +301,18 @@ export async function smartScan(opts = {}) {
 
 // ── card ─────────────────────────────────────────────────────
 export function smartCard(a) {
+  const mixTxt = a.mix ? Object.entries(a.mix).map(([t, n]) => `${n} ${t.toLowerCase()}`).join(' · ') : '';
   const lines = [
     `$${a.sym} — smartmoney flow`,
     '',
     ...a.lines,
     '',
     `wallets: ${a.wallets}/${WATCH.length} watch · buys ${a.buys} · sells ${a.sells}`,
+    mixTxt ? `mix: ${mixTxt}` : null,
     `net ~${a.crcl.toFixed(2)} CRCL (≈$${(a.crcl * CRCL_USD).toFixed(0)})`,
     '',
     'yukaya arc desk · smartmoney',
-  ];
+  ].filter(Boolean);
   return `<pre>${lines.map(x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('\n')}</pre>`;
 }
 

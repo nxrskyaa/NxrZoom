@@ -21,6 +21,18 @@ async function keeper(path) {
   return r.json();
 }
 
+async function rpc(method, params) {
+  for (let i = 0; i < 4; i++) {
+    try {
+      const r = await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': 'Mozilla/5.0' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(30000) });
+      const d = await r.json();
+      if (d.result !== undefined) return d.result;
+    } catch {}
+    await new Promise(res => setTimeout(res, 1500));
+  }
+  return null;
+}
+
 async function totalSupply(token) {
   const r = await fetch(RPC, {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -60,6 +72,8 @@ export async function arcScan(opts = {}) {
   }
 
   const ls = feed.launches || [];
+  const headHex = await rpc('eth_blockNumber', []);
+  const head = headHex ? parseInt(headHex, 16) : 0;
   const supplies = await mapChunked(ls, async l => {
     const t = (l.token || '').toLowerCase();
     const c = state.supplyCache[t];
@@ -95,7 +109,7 @@ export async function arcScan(opts = {}) {
       sym: l.symbol, name: l.name, token, pool: l.pool, deployer: l.deployer,
       priceUsd, fdvUsd, pair, pairSym: stock ? stock.sym : 'pair',
       chg, image: l.image || null, website: l.website || null, twitter: l.twitter || null,
-      positionId: l.positionId,
+      positionId: l.positionId, block: l.block || null,
     });
   }
 
@@ -106,7 +120,7 @@ export async function arcScan(opts = {}) {
   const movers = out
     .filter(t => t.chg != null && t.chg >= 15 && (t.fdvUsd ?? 0) >= 50_000)
     .sort((a, b) => b.chg - a.chg);
-  return { launches: out, stocks, newLaunches, movers };
+  return { launches: out, stocks, newLaunches, movers, head };
 }
 
 // ── cards ────────────────────────────────────────────────────
