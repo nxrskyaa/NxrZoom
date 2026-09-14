@@ -65,62 +65,72 @@ function send(chatId, text, extra = {}) {
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const meter = sev => '▰'.repeat(Math.round(sev / 10)) + '▱'.repeat(10 - Math.round(sev / 10));
-const sideIcon = s => s === 'BUY' ? '🟢' : s === 'SELL' ? '🔴' : '🟡';
+
+function alertKeyboard(p) {
+  const ca = p.baseToken.address;
+  return { inline_keyboard: [
+    [
+      { text: '📈 Chart', url: p.url || `https://dexscreener.com/solana/${ca}` },
+      { text: 'axiom', url: `https://axiom.trade/t/${ca}` },
+      { text: 'gmgn', url: `https://gmgn.ai/sol/token/${ca}` },
+    ],
+  ] };
+}
+
+// plain reads (rendered inside the mono card — no rich tags)
+function buildReads(p, e) {
+  const fw = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n ?? 0);
+  const L = (label, val) => label.padEnd(8, ' ') + val;
+  const reads = [];
+  if (e.pressure.h1 != null) reads.push(L('flow', `buy ${e.pressure.h1}%` + (e.accel != null ? ` · accel ${e.accel}x` : '')));
+  if (e.rug && e.rug.score != null) reads.push(L('safety', `${e.rug.score}/100 ${e.rug.score < 25 ? 'ok' : e.rug.score < 60 ? 'mid' : 'RISK'}`));
+  const t24 = p.txns?.h24;
+  if (t24 && t24.buys + t24.sells > 0) reads.push(L('wallets', `${fw(t24.buys)} b / ${fw(t24.sells)} s`));
+  const sm5 = p.txns?.m5?.buys ?? null, sh1 = p.txns?.h1?.buys ?? null;
+  if (sm5 != null || sh1 != null) reads.push(L('entry', `${fw(sm5 ?? 0)} (5m)` + (sh1 != null ? ` · ${fw(sh1)} (1h)` : '')));
+  for (const f of e.flags) reads.push('! ' + f.replace(/^[^\w$]+ /, '').replace(/<[^>]+>/g, ''));
+  return reads;
+}
+
+// full signal card — mono terminal style
+function fmtCard(p, s, e) {
+  const pc = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const mc = p.marketCap ?? p.fdv;
+  const P = (label, val) => label.padEnd(8, ' ') + val;
+  const now = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' });
+  const liqMcTxt = e.liqMc != null ? ` · ${e.liqMc}% mc` : '';
+  const lines = [
+    `$${p.baseToken.symbol} — ${p.baseToken.name}`,
+    `${meter(s.severity)} sev ${s.severity} · ${s.side}${s.confidence ? ` · conf ${s.confidence}%` : ''}`,
+    ``,
+    P('price', p.priceUsd != null ? '$' + p.priceUsd.toPrecision(4) : '—'),
+    P('mcap', '$' + fmtShort(mc)),
+    P('liq', '$' + fmtShort(p.liquidity?.usd) + liqMcTxt),
+    P('vol 24h', '$' + fmtShort(p.volume?.h24) + (s.volMc != null ? ` · turn ${s.volMc.toFixed(2)}x` : '')),
+    ``,
+    `5m ${pc(p.priceChange?.m5)}  1h ${pc(p.priceChange?.h1)}  24h ${pc(p.priceChange?.h24)}` + (e.ageHrs != null ? `\nage ${e.ageHrs}h` : ''),
+    ``,
+    ...buildReads(p, e),
+    ``,
+    `yukaya signal desk · ${now} WITA`,
+  ];
+  return `<pre>${esc(lines.join('\n'))}</pre>`;
+}
 
 function fmtAlert(r, e) {
   const { pair: p, score: s } = r;
-  const pc = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
-  const mc = p.marketCap ?? p.fdv;
-  const t24 = p.txns?.h24;
-
-  const reads = [];
-  if (e.pressure.h1 != null) {
-    reads.push(`• flow: <b>buy ${e.pressure.h1}%</b> (1h)${e.accel != null ? ` · accel ${e.accel}x` : ''}`);
-  } else if (e.accel != null) {
-    reads.push(`• flow: accel ${e.accel}x`);
-  }
-  if (e.rug && e.rug.score != null) {
-    const tag = e.rug.score < 25 ? '✓ aman' : e.rug.score < 60 ? '〜 waspada' : '⚠️ berbahaya';
-    reads.push(`• rugcheck: <b>${e.rug.score}/100</b> ${tag}${e.rug.lpLockedPct != null ? ` · LP ${Math.round(e.rug.lpLockedPct)}% locked` : ''}${e.rug.lpProviders ? ` · ${e.rug.lpProviders} LP` : ''}`);
-  }
-  if (e.liqMc != null) reads.push(`• liq: $${fmtShort(p.liquidity?.usd)} (${e.liqMc}% MC)${e.liqMc < 8 ? ' ⚠️' : ' ✓'}`);
-  if (t24 && t24.buys + t24.sells > 0) {
-    reads.push(`• wallets: ${t24.buys} buy / ${t24.sells} sell (24h)`);
-  }
-  const sm5 = p.txns?.m5?.buys ?? null, sh1 = p.txns?.h1?.buys ?? null;
-  if (sm5 != null || sh1 != null) {
-    reads.push(`• smart money: <b>${sm5 ?? 0} wallets in</b> (5m)${sh1 != null ? ` · ${sh1} (1h)` : ''}`);
-  }
-  for (const f of e.flags) reads.push(f.startsWith('⚡') || f.startsWith('🌱') ? f : `<b>${f}</b>`);
-
-  return [
-    `⚡ <b>YUKAYA</b> · ${sideIcon(s.side)} Volume Anomaly`,
-    ``,
-    `<b>$${esc(p.baseToken.symbol)}</b> — ${esc(p.baseToken.name)}`,
-    `${meter(s.severity)} sev ${s.severity}/100 · conf ${s.confidence}%`,
-    ``,
-    `MC $${fmtShort(mc)} · Vol 24h $${fmtShort(p.volume?.h24)} · Vol/MC ${s.volMc.toFixed(2)}x`,
-    `1h ${pc(p.priceChange?.h1)} · 24h ${pc(p.priceChange?.h24)}${e.ageHrs != null ? ` · age ${e.ageHrs}h` : ''}`,
-    ``,
-    `🧠 <b>smart reads</b>`,
-    ...reads,
-    ``,
-    `↳ detail: nxrzoom.vercel.app/scan?ca=${esc(p.baseToken.address)}`,
-  ].join('\n');
-}
-function alertKeyboard(p) {
-  const ca = p.baseToken.address;
-  return { inline_keyboard: [[
-    { text: '📈 Chart', url: p.url || `https://dexscreener.com/solana/${ca}` },
-    { text: 'axiom', url: `https://axiom.trade/t/${ca}` },
-    { text: 'gmgn', url: `https://gmgn.ai/sol/token/${ca}` },
-  ]] };
+  const head = s.side === 'BUY'
+    ? '🟢 <b>BUY SIGNAL</b>'
+    : s.side === 'SELL' ? '🔴 <b>SELL PRESSURE</b>' : '🟡 <b>ANOMALY</b>';
+  return `⚡ <b>YUKAYA</b> · NxrLabs\n${head}\n\n${fmtCard(p, s, e)}`;
 }
 
 // ── cycle ────────────────────────────────────────────────────
 let lastRecapDay = new Date().getDate();
+let lastResults = null, lastScanAt = 0;
 async function cycle(opts = {}) {
   const results = await scan(opts);
+  lastResults = results; lastScanAt = Date.now();
   if (mutedUntil > Date.now() && !opts.ignoreCooldown) {
     return { results, sent: 0, muted: true };
   }
@@ -160,7 +170,7 @@ function recapText(rec) {
   lines.push(`Total vol: $${fmtShort(rec.vol24)} · ${rec.buys}/${rec.buys + rec.sells} buys (${Math.round(100 * rec.buys / Math.max(1, rec.buys + rec.sells))}%)`);
   lines.push(`${rec.fresh} pairs <24h · ${rec.total} tracked`);
   lines.push('');
-  lines.push('yukaya by nxrlabs · nxrzoom.vercel.app');
+  lines.push('— yukaya · nxrlabs —');
   return lines.join('\n');
 }
 
@@ -176,7 +186,7 @@ async function handle(msg) {
     return send(chatId, [
       '⚡ <b>YUKAYA by NxrLabs</b>',
       '',
-      'volume-anomaly scanner untuk solana — sinyal dari feed nxrzoom_',
+      'volume-anomaly scanner solana — yukaya signal engine',
       '',
       '/scan — paksa scan sekarang',
       '/status — kondisi engine + target alerts',
@@ -258,7 +268,7 @@ async function handleChannelPost(post) {
     await tg('sendMessage', {
       chat_id: chat.id,
       ...(post.message_thread_id ? { message_thread_id: post.message_thread_id } : {}),
-      text: `⚡ <b>YUKAYA terhubung</b>\n\nAlert otomatis akan diposting di channel ini.\nSumber: feed nxrzoom_ · scan tiap ${CFG.pollSec / 60} menit\n\nUji: /scan`,
+      text: `⚡ <b>YUKAYA terhubung</b>\n\nSignal otomatis akan diposting di channel ini.\nYukaya signal engine · scan tiap ${CFG.pollSec / 60} menit\n\nUji: /scan`,
       parse_mode: 'HTML', link_preview_options: { is_disabled: true },
     }).catch(e => console.error('setchannel confirm:', e.message));
     console.log('channel bound:', chat.id, chat.title);
