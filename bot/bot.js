@@ -74,6 +74,7 @@ function alertKeyboard(p) {
       { text: 'axiom', url: `https://axiom.trade/t/${ca}` },
       { text: 'gmgn', url: `https://gmgn.ai/sol/token/${ca}` },
     ],
+    [{ text: '⧉ Copy CA', copy_text: { text: ca } }],
   ] };
 }
 
@@ -101,6 +102,7 @@ function fmtCard(p, s, e) {
   const liqMcTxt = e.liqMc != null ? ` · ${e.liqMc}% mc` : '';
   const lines = [
     `$${p.baseToken.symbol} — ${p.baseToken.name}`,
+    p.baseToken.address,
     `${meter(s.severity)} sev ${s.severity} · ${s.side}${s.confidence ? ` · conf ${s.confidence}%` : ''}`,
     ``,
     P('price', p.priceUsd != null ? '$' + p.priceUsd.toPrecision(4) : '—'),
