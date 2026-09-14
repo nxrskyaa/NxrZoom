@@ -245,8 +245,27 @@ async function cycle(opts = {}) {
       // ── RUG GATE: hard skip — jangan sampai buy signal buat token rug ──
       if (e.rug && e.rug.score != null) {
         const danger = (e.rug.risks || []).some(r => r.level === 'danger');
-        if (e.rug.score >= 60 || danger) {
+        if (e.rug.score >= 45 || danger) {
           console.log(`rug-gate skip ${c.pair.baseToken?.symbol || c.pair.chainId}: score ${e.rug.score}${danger ? ' +danger risk' : ''}`);
+          continue;
+        }
+      }
+      // ── QUALITY GATE (BUY only): liq/mc/wash/umur/deadcat/fail-closed ──
+      if (c.score.side === 'BUY') {
+        const liq = c.pair.liquidity?.usd || 0;
+        const mc = c.pair.marketCap ?? c.pair.fdv ?? 0;
+        const vol = c.pair.volume?.h24 || 0;
+        const ageH = c.pair.pairCreatedAt ? (Date.now() - c.pair.pairCreatedAt) / 3600000 : null;
+        const chg24 = c.pair.priceChange?.h24;
+        const why = [];
+        if (liq < 30000) why.push(`liq $${(liq / 1000).toFixed(1)}k <30k`);
+        if (mc < 50000) why.push(`mc $${(mc / 1000).toFixed(1)}k <50k`);
+        if (liq > 0 && vol / liq > 30) why.push(`vol/liq ${(vol / liq).toFixed(0)}x (wash?)`);
+        if (ageH != null && ageH < 1) why.push(`umur ${Math.floor(ageH * 60)}m <1h`);
+        if (chg24 != null && chg24 < -50) why.push(`deadcat ${chg24.toFixed(0)}% 24h`);
+        if (!e.rug || e.rug.score == null) why.push('rugcheck unreadable (fail-closed)');
+        if (why.length) {
+          console.log(`quality-gate skip ${c.pair.baseToken?.symbol}: ${why.join(', ')}`);
           continue;
         }
       }
