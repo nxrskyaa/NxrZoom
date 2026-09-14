@@ -12,3 +12,4 @@ bot/smart-state.json
 bot/rh-state.json
 bot/baseline-long-trades.json
 bot/rhmap-state.json
+bot/ta-cache.json

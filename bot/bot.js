@@ -6,6 +6,7 @@ import { arcScan, launchCard, socialLinks, moverCard, boardCard, fmtUsd } from '
 import { smartScan, smartCard, POOLS as SMART_POOLS, scoreLaunch } from './smart.js';
 import { rhScan, rhCard } from './rh.js';
 import { rhmapScan, screenMemes, memeCard, boardCard as rhBoardCard } from './rhmap.js';
+import { taRead } from './ta.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -98,7 +99,7 @@ function buildReads(p, e) {
 }
 
 // full signal card — mono terminal style
-function fmtCard(p, s, e) {
+function fmtCard(p, s, e, ta) {
   const pc = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
   const mc = p.marketCap ?? p.fdv;
   const P = (label, val) => label.padEnd(8, ' ') + val;
@@ -117,18 +118,19 @@ function fmtCard(p, s, e) {
     `5m ${pc(p.priceChange?.m5)}  1h ${pc(p.priceChange?.h1)}  24h ${pc(p.priceChange?.h24)}` + (e.ageHrs != null ? `\nage ${e.ageHrs}h` : ''),
     ``,
     ...buildReads(p, e),
+    ...(ta && ta.ok ? ['', '── ta 5m/15m/1h ──', ...ta.lines] : []),
     ``,
     `yukaya signal desk · ${now} WITA`,
   ];
   return `<pre>${esc(lines.join('\n'))}</pre>`;
 }
 
-function fmtAlert(r, e) {
+function fmtAlert(r, e, ta) {
   const { pair: p, score: s } = r;
   const head = s.side === 'BUY'
     ? '🟢 <b>BUY SIGNAL</b>'
     : s.side === 'SELL' ? '🔴 <b>SELL PRESSURE</b>' : '🟡 <b>ANOMALY</b>';
-  return `⚡ <b>YUKAYA</b> · NxrLabs\n${head}\n\n${fmtCard(p, s, e)}`;
+  return `⚡ <b>YUKAYA</b> · NxrLabs\n${head}\n\n${fmtCard(p, s, e, ta)}`;
 }
 
 // ── arc desk cycle (long.supply frontrun) ────────────────────
@@ -245,7 +247,14 @@ async function cycle(opts = {}) {
           continue;
         }
       }
-      await send(tgt.chat, fmtAlert(c, e), { reply_markup: alertKeyboard(c.pair) });
+      // TA read: supertrend + ema cross 5m/15m/1h (cached 3 min)
+      const ta = await taRead(c.pair.pairAddress).catch(() => null);
+      // BEAR GATE: buy signal tapi 1h bear stack + ST down → skip (kejar topbagus)
+      if (ta?.bear && c.score.side === 'BUY') {
+        console.log(`ta-gate skip ${c.pair.baseToken?.symbol}: 1h bear stack + ST down`);
+        continue;
+      }
+      await send(tgt.chat, fmtAlert(c, e, ta), { reply_markup: alertKeyboard(c.pair) });
     } catch (e) { console.error('send failed:', e.message); }
   }
   // daily recap
