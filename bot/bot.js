@@ -2,6 +2,7 @@
 // owner-gated, long-polling, zero deps (node 22 native fetch)
 import { scan, pickAlerts, buildRecap, CFG, levelOf, fmtShort } from './engine.js';
 import { enrich } from './enrich.js';
+import { arcScan, launchCard, moverCard, boardCard, fmtUsd } from './arc.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -127,6 +128,47 @@ function fmtAlert(r, e) {
   return `⚡ <b>YUKAYA</b> · NxrLabs\n${head}\n\n${fmtCard(p, s, e)}`;
 }
 
+// ── arc desk cycle (long.supply frontrun) ────────────────────
+const ARC_ALERT_FILE = join(HERE, 'arc-alerts.json');
+const ARC_POLL_MIN = Number(env.ARC_POLL_MIN || 5);
+let arcAlerts = {};
+try { arcAlerts = JSON.parse(readFileSync(ARC_ALERT_FILE, 'utf8')); } catch {}
+function saveArcAlerts() { try { writeFileSync(ARC_ALERT_FILE, JSON.stringify(arcAlerts)); } catch {} }
+
+async function arcCycle(tgt, opts = {}) {
+  const r = await arcScan(opts);
+  const now = Date.now();
+  let sent = 0;
+
+  // new launches (max 3/cycle, skip if older than 3h worth of unknowns)
+  const fresh = r.newLaunches.map(t => r.launches.find(l => l.token === t)).filter(Boolean)
+    .sort((a, b) => (b.fdvUsd ?? 0) - (a.fdvUsd ?? 0)).slice(0, 3);
+  for (const l of fresh) {
+    if (arcAlerts[l.token] && now - arcAlerts[l.token] < 6 * 3600000) continue;
+    arcAlerts[l.token] = now;
+    try {
+      await send(tgt.chat, `🟠 <b>ARC LAUNCH</b> · NxrLabs\n\n${launchCard(l, r.stocks)}`, {
+        reply_markup: { inline_keyboard: [[{ text: '⧉ Copy CA', copy_text: { text: l.token } }, { text: '🔎 Explorer', url: `https://arc-scan.org/token/${l.token}` }]] },
+      });
+      sent++;
+    } catch (e) { console.error('arc launch send:', e.message); }
+  }
+
+  // movers: chg >= 15% over tracked window, cooldown 6h per token, max 2/cycle
+  const mv = r.movers.filter(l => !arcAlerts['mv:' + l.token] || now - arcAlerts['mv:' + l.token] > 6 * 3600000).slice(0, 2);
+  for (const l of mv) {
+    arcAlerts['mv:' + l.token] = now;
+    try {
+      await send(tgt.chat, `🚀 <b>ARC PUMP</b> · NxrLabs\n\n${moverCard(l)}`, {
+        reply_markup: { inline_keyboard: [[{ text: '⧉ Copy CA', copy_text: { text: l.token } }, { text: '🔎 Explorer', url: `https://arc-scan.org/token/${l.token}` }]] },
+      });
+      sent++;
+    } catch (e) { console.error('arc mover send:', e.message); }
+  }
+  saveArcAlerts();
+  return { ...r, sent };
+}
+
 // ── cycle ────────────────────────────────────────────────────
 let lastRecapDay = new Date().getDate();
 let lastResults = null, lastScanAt = 0;
@@ -193,6 +235,7 @@ async function handle(msg) {
       '/scan — paksa scan sekarang',
       '/status — kondisi engine + target alerts',
       '/recap — rekap 24h',
+      '/arc — arc desk (saham + top tokens)',
       '/setchannel — aktifkan auto-post ke channel',
       '/mute 3 — diam 3 jam',
       '/unmute — aktif lagi',
@@ -235,6 +278,17 @@ async function handle(msg) {
       const results = await scan({ ignoreCooldown: true });
       const rec = await buildRecap(results);
       await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: recapText(rec), parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    } catch (e) {
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
+    }
+    return;
+  }
+
+  if (/^\/arc/.test(text)) {
+    const m = await send(chatId, '🟠 arc desk — loading…');
+    try {
+      const r = await arcScan({ firstRun: true });
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: boardCard(r), parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
     } catch (e) {
       await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
     }
@@ -297,6 +351,15 @@ async function handleChannelPost(post) {
       await send(chat.id, recapText(rec));
     } catch (e) { console.error('ch recap:', e.message); }
   }
+  if (/^\/arc/.test(text)) {
+    const m = await send(chat.id, '🟠 arc desk — loading…').catch(() => null);
+    try {
+      const r = await arcScan({ firstRun: true });
+      const payload = boardCard(r);
+      if (m) await tg('editMessageText', { chat_id: chat.id, message_id: m.message_id, text: payload, parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+      else await send(chat.id, payload);
+    } catch (e) { console.error('ch arc:', e.message); }
+  }
 }
 
 // ── long polling ─────────────────────────────────────────────
@@ -321,4 +384,16 @@ async function pollLoop() {
 console.log(`yukaya starting — owner: ${OWNERS.join(',')} — alerts → ${ALERT_CHAT || 'private'}`);
 cycle().then(({ sent }) => console.log(`first cycle done, ${sent} alerts`)).catch(e => console.error('first cycle:', e.message));
 setInterval(() => cycle().catch(e => console.error('cycle:', e.message)), CFG.pollSec * 1000);
+
+// arc desk: first run quiet (baseline), then every ARC_POLL_MIN minutes
+setTimeout(() => {
+  const tgt = alertTarget();
+  arcCycle(tgt, { firstRun: true })
+    .then(r => console.log(`arc baseline: ${r.launches.length} tokens, stocks ${Object.keys(r.stocks).length}`))
+    .catch(e => console.error('arc baseline:', e.message));
+}, 15000).unref?.();
+setInterval(() => {
+  const tgt = alertTarget();
+  arcCycle(tgt).catch(e => console.error('arc cycle:', e.message));
+}, ARC_POLL_MIN * 60000);
 pollLoop();
