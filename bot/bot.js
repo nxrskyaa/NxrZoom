@@ -5,6 +5,7 @@ import { enrich } from './enrich.js';
 import { arcScan, launchCard, socialLinks, moverCard, boardCard, fmtUsd } from './arc.js';
 import { smartScan, smartCard, POOLS as SMART_POOLS, scoreLaunch } from './smart.js';
 import { rhScan, rhCard } from './rh.js';
+import { rhmapScan, screenMemes, memeCard, boardCard as rhBoardCard } from './rhmap.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -185,7 +186,23 @@ async function arcCycle(tgt, opts = {}) {
   return { ...r, sent };
 }
 
-// ── smart flow cycle (watch wallets) ─────────────────────────
+// ── rh map cycle (stockyard meme×stock) ──────────────────────
+async function rhmapCycle(tgt) {
+  const d = await rhmapScan();
+  if (d.error) { console.error('rhmap:', d.error); return 0; }
+  const alerts = screenMemes(d.memes);
+  let sent = 0;
+  for (const m of alerts) {
+    try {
+      await send(tgt.chat, `🟣 <b>RH MEME</b> · NxrLabs\n\n${memeCard(m)}${m.url ? `\n<a href="${m.url}">📊 dexscreener pair</a>` : ''}`, {});
+      console.log(`rhmap alert: $${m.sym} on $${m.stock} +${(m.chg1h ?? 0).toFixed(0)}%`);
+      sent++;
+    } catch (e) { console.error('rhmap send:', e.message); }
+  }
+  return sent;
+}
+setTimeout(() => rhmapCycle(alertTarget()).catch(e => console.error('rhmap first:', e.message)), 40000);
+setInterval(() => rhmapCycle(alertTarget()).catch(e => console.error('rhmap cycle:', e.message)), ARC_POLL_MIN * 180000);
 async function smartCycle(tgt) {
   const r = await smartScan();
   if (r.error) { console.error('smart scan:', r.error); return { sent: 0 }; }
@@ -220,6 +237,14 @@ async function cycle(opts = {}) {
   for (const c of cands) {
     try {
       const e = await enrich(c.pair); // smart reads (abstains silently on RPC failure)
+      // ── RUG GATE: hard skip — jangan sampai buy signal buat token rug ──
+      if (e.rug && e.rug.score != null) {
+        const danger = (e.rug.risks || []).some(r => r.level === 'danger');
+        if (e.rug.score >= 60 || danger) {
+          console.log(`rug-gate skip ${c.pair.baseToken?.symbol || c.pair.chainId}: score ${e.rug.score}${danger ? ' +danger risk' : ''}`);
+          continue;
+        }
+      }
       await send(tgt.chat, fmtAlert(c, e), { reply_markup: alertKeyboard(c.pair) });
     } catch (e) { console.error('send failed:', e.message); }
   }
@@ -274,6 +299,7 @@ async function handle(msg) {
       '/recap — rekap 24h',
       '/arc — arc desk (saham + top tokens)',
       '/sm — smartmoney flow sweep manual',
+      '/rh — rh chain: meme×stock board + breakouts',
       '/setchannel — aktifkan auto-post ke channel',
       '/mute 3 — diam 3 jam',
       '/unmute — aktif lagi',
@@ -341,6 +367,22 @@ async function handle(msg) {
       const txt = r.alerts.length
         ? r.alerts.map(a => `🧠 <b>SMART FLOW</b> · ${a.sym}\n\n${smartCard(a)}`).join('\n\n')
         : '🧠 smart flow — <b>bersih</b>\n\n<i>gak ada aktivitas watch wallets di window ini</i>';
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: txt, parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    } catch (e) {
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
+    }
+    return;
+  }
+
+  if (/^\/rh\b/.test(text)) {
+    const m = await send(chatId, '🟣 rh desk — pulling stockyard map…');
+    try {
+      const d = await rhmapScan();
+      if (d.error) throw new Error(d.error);
+      const hot = screenMemes(d.memes);
+      const txt = hot.length
+        ? ['🟣 <b>RH DESK</b> · meme×stock\n\n', rhBoardCard(d), '\n\nHOT (1h):', ...hot.slice(0, 3).map(x => `\n$${x.sym} on $${x.stock} +${x.chg1h.toFixed(1)}% · liq ${x.liq >= 1e3 ? '$' + Math.round(x.liq / 1e3) + 'k' : '$' + Math.round(x.liq)}`)].join('')
+        : rhBoardCard(d);
       await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: txt, parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
     } catch (e) {
       await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
