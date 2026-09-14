@@ -6,6 +6,7 @@ import { arcScan, launchCard, socialLinks, moverCard, boardCard, fmtUsd } from '
 import { smartScan, smartCard, POOLS as SMART_POOLS, scoreLaunch } from './smart.js';
 import { rhmapScan, screenMemes, memeCard, boardCard as rhBoardCard } from './rhmap.js';
 import { taRead, taReadGmgn } from './ta.js';
+import { gmgnMap, gmgnGates, gmgnLines } from './gmgn.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -98,7 +99,7 @@ function buildReads(p, e) {
 }
 
 // full signal card — mono terminal style
-function fmtCard(p, s, e, ta) {
+function fmtCard(p, s, e, ta, g) {
   const pc = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
   const mc = p.marketCap ?? p.fdv;
   const P = (label, val) => label.padEnd(8, ' ') + val;
@@ -118,18 +119,19 @@ function fmtCard(p, s, e, ta) {
     ``,
     ...buildReads(p, e),
     ...(ta && ta.ok ? ['', '── ta 5m/15m/1h ──', ...ta.lines] : []),
+    ...(gmgnLines(g).length ? ['', '── security gmgn ──', ...gmgnLines(g)] : []),
     ``,
     `yukaya signal desk · ${now} WITA`,
   ];
   return `<pre>${esc(lines.join('\n'))}</pre>`;
 }
 
-function fmtAlert(r, e, ta) {
+function fmtAlert(r, e, ta, g) {
   const { pair: p, score: s } = r;
   const head = s.side === 'BUY'
     ? '🟢 <b>BUY SIGNAL</b>'
     : s.side === 'SELL' ? '🔴 <b>SELL PRESSURE</b>' : '🟡 <b>ANOMALY</b>';
-  return `⚡ <b>YUKAYA</b> · NxrLabs\n${head}\n\n${fmtCard(p, s, e, ta)}`;
+  return `⚡ <b>YUKAYA</b> · NxrLabs\n${head}\n\n${fmtCard(p, s, e, ta, g)}`;
 }
 
 // ── arc desk cycle (long.supply frontrun) ────────────────────
@@ -271,12 +273,20 @@ async function cycle(opts = {}) {
       }
       // TA read: supertrend + ema cross 5m/15m/1h (cached 3 min)
       const ta = await taRead(c.pair.pairAddress).catch(() => null);
+      // GMGN security read (trending map, cached 3 min)
+      const g = await gmgnMap().then(m => m[(c.pair.baseToken?.address || '').toLowerCase()]).catch(() => null);
+      // GMGN GATE: wash/phishing/bundler/dev/top10
+      const gwhy = gmgnGates(g);
+      if (gwhy.length) {
+        console.log(`gmgn-gate skip ${c.pair.baseToken?.symbol}: ${gwhy.join(', ')}`);
+        continue;
+      }
       // BEAR GATE: buy signal tapi 1h bear stack + ST down → skip (kejar topbagus)
       if (ta?.bear && c.score.side === 'BUY') {
         console.log(`ta-gate skip ${c.pair.baseToken?.symbol}: 1h bear stack + ST down`);
         continue;
       }
-      await send(tgt.chat, fmtAlert(c, e, ta), { reply_markup: alertKeyboard(c.pair) });
+      await send(tgt.chat, fmtAlert(c, e, ta, g), { reply_markup: alertKeyboard(c.pair) });
     } catch (e) { console.error('send failed:', e.message); }
   }
   // daily recap
