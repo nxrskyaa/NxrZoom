@@ -29,6 +29,15 @@ async function doScan(){
   }
 }
 
+// auto-run scan when ?ca= is present (bot alerts deep-link here)
+try {
+  const qca = new URLSearchParams(location.search).get('ca');
+  if (qca && isSolAddr(qca) && $f('#scanInput')) {
+    $f('#scanInput').value = qca.trim();
+    doScan();
+  }
+} catch {}
+
 function renderScan(d){
   const chg = d.chg && d.chg.h24!=null ? `<span class="${d.chg.h24>=0?'green':'red'}">${d.chg.h24>=0?'+':''}${Number(d.chg.h24).toFixed(1)}% 24h</span>` : '';
   const holderRows = (d.holders||[]).slice(0,10).map((h,i)=>`
