@@ -1,1 +1,8 @@
 .vercel
+bot/node_modules/
+bot/.env
+bot/state.json
+bot/mute.json
+bot/channel.json
+bot/rug-cache.json
+bot/whale-cache.json

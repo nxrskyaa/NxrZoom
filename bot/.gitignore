@@ -1,0 +1,7 @@
+node_modules/
+.env
+state.json
+mute.json
+channel.json
+rug-cache.json
+whale-cache.json
