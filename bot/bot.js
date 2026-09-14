@@ -4,9 +4,8 @@ import { scan, pickAlerts, buildRecap, CFG, levelOf, fmtShort } from './engine.j
 import { enrich } from './enrich.js';
 import { arcScan, launchCard, socialLinks, moverCard, boardCard, fmtUsd } from './arc.js';
 import { smartScan, smartCard, POOLS as SMART_POOLS, scoreLaunch } from './smart.js';
-import { rhScan, rhCard } from './rh.js';
 import { rhmapScan, screenMemes, memeCard, boardCard as rhBoardCard } from './rhmap.js';
-import { taRead } from './ta.js';
+import { taRead, taReadGmgn } from './ta.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -196,7 +195,11 @@ async function rhmapCycle(tgt) {
   let sent = 0;
   for (const m of alerts) {
     try {
-      await send(tgt.chat, `🟣 <b>RH MEME</b> · NxrLabs\n\n${memeCard(m)}${m.url ? `\n<a href="${m.url}">📊 dexscreener pair</a>` : ''}`, {});
+      const ta = await taReadGmgn(m.addr).catch(() => null);
+      // bear gate: 1h ema bear + ST down → skip
+      if (ta?.bear) { console.log(`rhmap ta-gate skip $${m.sym}: 1h bear`); continue; }
+      const chart = `https://gmgn.ai/robinhood/token/${m.addr}`;
+      await send(tgt.chat, `🟣 <b>RH MEME</b> · NxrLabs\n\n${memeCard(m, ta)}\n📈 <a href="${chart}">chart gmgn</a>${m.url ? ` · <a href="${m.url}">dexscreener</a>` : ''}`, {});
       console.log(`rhmap alert: $${m.sym} on $${m.stock} +${(m.chg1h ?? 0).toFixed(0)}%`);
       sent++;
     } catch (e) { console.error('rhmap send:', e.message); }
@@ -517,18 +520,4 @@ setTimeout(() => {
   setInterval(() => smartCycle(alertTarget()).catch(e => console.error('smart cycle:', e.message)), ARC_POLL_MIN * 60000);
 }, (ARC_POLL_MIN * 60000) / 2);
 
-// rh desk: bridge inflow screener, tiap 10 menit (first run baseline, no alert)
-async function rhCycle(tgt, quiet = false) {
-  const r = await rhScan();
-  if (r.error) { console.error('rh scan:', r.error); return; }
-  if (quiet) { console.log(`rh baseline: ${r.tracked} stocks tracked, head ${r.head}`); return; }
-  for (const a of r.alerts) {
-    try {
-      await send(tgt.chat, `🟣 <b>RH BRIDGE</b> · NxrLabs\n\n${rhCard(a)}`, {});
-      console.log(`rh alert: $${a.sym} in $${a.inflowUsd.toFixed(0)}`);
-    } catch (e) { console.error('rh send:', e.message); }
-  }
-}
-setTimeout(() => rhCycle(alertTarget(), true).catch(e => console.error('rh first:', e.message)), 25000);
-setInterval(() => rhCycle(alertTarget()).catch(e => console.error('rh cycle:', e.message)), ARC_POLL_MIN * 120000);
 pollLoop();

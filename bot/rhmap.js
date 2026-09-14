@@ -100,10 +100,10 @@ export function boardCard(data) {
   return `<pre>${lines.join('\n')}</pre>`;
 }
 
-export function memeCard(m) {
+export function memeCard(m, ta) {
   const L = (label, val) => (label + ' ').padEnd(7, ' ') + val;
   const lines = [
-    `$${m.sym} on \$${m.stock} — RH chain`,
+    `$${m.sym} on $${m.stock} — RH chain`,
     m.addr,
     '',
     L('px', m.stockPx ? '$' + Number(m.stockPx).toFixed(2) + ' /' + m.stock : '—'),
@@ -115,6 +115,7 @@ export function memeCard(m) {
     m.lp ? L('launchpad', m.lp) : null,
     '',
     ...memeSafety(m).map(f => f),
+    ...(ta && ta.ok ? ['', '── ta gmgn 5m/15m/1h ──', ...ta.lines] : []),
     '',
     'yukaya rh desk · stockyard',
   ].filter(Boolean);
