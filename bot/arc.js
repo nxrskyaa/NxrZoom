@@ -118,17 +118,23 @@ export function launchCard(l, stocks) {
     '',
     L('price', l.priceUsd != null ? '$' + (l.priceUsd >= 0.01 ? l.priceUsd.toFixed(4) : l.priceUsd.toPrecision(3)) : '—'),
     L('fdv', fmtUsd(l.fdvUsd)),
-    L('pair', l.pairSym + (stocks?.[l.pairSym?.toLowerCase()] ? '' : '')),
-    '',
-    (l.website ? 'web  ' + l.website.replace(/^https?:\/\//, '') : null),
-    (l.twitter ? 'x    ' + l.twitter.replace(/^https?:\/\//, '') : null),
-    (l.telegram ? 'tg   ' + l.telegram.replace(/^https?:\/\//, '') : null),
+    L('pair', l.pairSym),
     '',
     'deployer ' + l.deployer.slice(0, 6) + '…' + l.deployer.slice(-4),
     'yukaya arc desk · new launch',
-  ].filter(v => v !== null);
+  ];
   return `<pre>${lines.map(x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('\n')}</pre>`;
 }
+
+// socials sebagai link klikable (di luar mono card biar bisa di-copy/tap)
+export function socialLinks(l) {
+  const parts = [];
+  if (l.website) parts.push(`<a href="${escAttr(l.website)}">🌐 site</a>`);
+  if (l.twitter) parts.push(`<a href="${escAttr(l.twitter)}">𝕏 x</a>`);
+  if (l.telegram) parts.push(`<a href="${escAttr(l.telegram)}">💬 tg</a>`);
+  return parts.length ? parts.join(' · ') : '';
+}
+const escAttr = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 export function moverCard(l) {
   const L = (label, val) => label.padEnd(8, ' ') + val;

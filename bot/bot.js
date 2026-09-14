@@ -2,7 +2,8 @@
 // owner-gated, long-polling, zero deps (node 22 native fetch)
 import { scan, pickAlerts, buildRecap, CFG, levelOf, fmtShort } from './engine.js';
 import { enrich } from './enrich.js';
-import { arcScan, launchCard, moverCard, boardCard, fmtUsd } from './arc.js';
+import { arcScan, launchCard, socialLinks, moverCard, boardCard, fmtUsd } from './arc.js';
+import { smartScan, smartCard, POOLS as SMART_POOLS } from './smart.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -147,7 +148,8 @@ async function arcCycle(tgt, opts = {}) {
     if (arcAlerts[l.token] && now - arcAlerts[l.token] < 6 * 3600000) continue;
     arcAlerts[l.token] = now;
     try {
-      await send(tgt.chat, `🟠 <b>ARC LAUNCH</b> · NxrLabs\n\n${launchCard(l, r.stocks)}`, {
+      const links = socialLinks(l);
+      await send(tgt.chat, `🟠 <b>ARC LAUNCH</b> · NxrLabs\n\n${launchCard(l, r.stocks)}${links ? '\n' + links : ''}`, {
         reply_markup: { inline_keyboard: [[{ text: '⧉ Copy CA', copy_text: { text: l.token } }, { text: '🔎 Explorer', url: `https://arc-scan.org/token/${l.token}` }]] },
       });
       sent++;
@@ -167,6 +169,27 @@ async function arcCycle(tgt, opts = {}) {
   }
   saveArcAlerts();
   return { ...r, sent };
+}
+
+// ── smart flow cycle (watch wallets) ─────────────────────────
+async function smartCycle(tgt) {
+  const r = await smartScan();
+  if (r.error) { console.error('smart scan:', r.error); return { sent: 0 }; }
+  let sent = 0;
+  for (const a of r.alerts) {
+    const tok = SMART_POOLS[a.sym]?.token;
+    try {
+      await send(tgt.chat, `🧠 <b>SMART FLOW</b> · NxrLabs\n\n${smartCard(a)}`, {
+        reply_markup: { inline_keyboard: [[
+          { text: '⧉ Copy CA', copy_text: { text: tok || a.sym } },
+          ...(tok ? [{ text: '🔎 Explorer', url: `https://arc-scan.org/token/${tok}` }] : []),
+        ]] },
+      });
+      sent++;
+    } catch (e) { console.error('smart send:', e.message); }
+  }
+  if (r.alerts.length) console.log(`smart flow: ${r.alerts.length} alert(s) — ${r.alerts.map(a => a.sym).join(', ')}`);
+  return { sent };
 }
 
 // ── cycle ────────────────────────────────────────────────────
@@ -236,6 +259,7 @@ async function handle(msg) {
       '/status — kondisi engine + target alerts',
       '/recap — rekap 24h',
       '/arc — arc desk (saham + top tokens)',
+      '/sm — smartmoney flow sweep manual',
       '/setchannel — aktifkan auto-post ke channel',
       '/mute 3 — diam 3 jam',
       '/unmute — aktif lagi',
@@ -289,6 +313,21 @@ async function handle(msg) {
     try {
       const r = await arcScan({ firstRun: true });
       await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: boardCard(r), parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    } catch (e) {
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
+    }
+    return;
+  }
+
+  if (/^\/sm/.test(text)) {
+    const m = await send(chatId, '🧠 smart flow — sweep…');
+    try {
+      const r = await smartScan();
+      if (r.error) throw new Error(r.error);
+      const txt = r.alerts.length
+        ? r.alerts.map(a => `🧠 <b>SMART FLOW</b> · ${a.sym}\n\n${smartCard(a)}`).join('\n\n')
+        : '🧠 smart flow — <b>bersih</b>\n\n<i>gak ada aktivitas watch wallets di window ini</i>';
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: txt, parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
     } catch (e) {
       await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
     }
@@ -360,6 +399,16 @@ async function handleChannelPost(post) {
       else await send(chat.id, payload);
     } catch (e) { console.error('ch arc:', e.message); }
   }
+  if (/^\/sm/.test(text)) {
+    try {
+      const r = await smartScan();
+      if (r.error) throw new Error(r.error);
+      const txt = r.alerts.length
+        ? r.alerts.map(a => `🧠 <b>SMART FLOW</b> · ${a.sym}\n\n${smartCard(a)}`).join('\n\n')
+        : '🧠 smart flow — <b>bersih</b>\n\n<i>gak ada aktivitas watch wallets di window ini</i>';
+      await send(chat.id, txt);
+    } catch (e) { console.error('ch sm:', e.message); }
+  }
 }
 
 // ── long polling ─────────────────────────────────────────────
@@ -396,4 +445,10 @@ setInterval(() => {
   const tgt = alertTarget();
   arcCycle(tgt).catch(e => console.error('arc cycle:', e.message));
 }, ARC_POLL_MIN * 60000);
+
+// smart flow: tiap 5 menit, offset 2.5 menit dari arc cycle
+setTimeout(() => {
+  smartCycle(alertTarget()).catch(e => console.error('smart first:', e.message));
+  setInterval(() => smartCycle(alertTarget()).catch(e => console.error('smart cycle:', e.message)), ARC_POLL_MIN * 60000);
+}, (ARC_POLL_MIN * 60000) / 2);
 pollLoop();
