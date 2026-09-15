@@ -8,6 +8,7 @@ import { rhmapScan, screenMemes, memeCard, boardCard as rhBoardCard } from './rh
 import { taRead, taReadGmgn } from './ta.js';
 import { gmgnMap, gmgnGates, gmgnLines } from './gmgn.js';
 import { poolScan, poolCard } from './pool.js';
+import { smTrackScan, smCard } from './smtrack.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -566,4 +567,20 @@ async function poolCycle(tgt) {
 }
 setTimeout(() => poolCycle(alertTarget()).catch(e => console.error('pool first:', e.message)), 42000);
 setInterval(() => poolCycle(alertTarget()).catch(e => console.error('pool cycle:', e.message)), 300000);
+// smart track cycle: cluster smart money buys via gmgn, tiap 5 menit
+async function smTrackCycle(tgt) {
+  try {
+    const alerts = await smTrackScan();
+    for (const c of alerts) {
+      try {
+        await send(tgt.chat, `🧠 <b>SMART FLOW</b> · NxrLabs\n\n${smCard(c)}\n📈 <a href="${c.gmgnUrl}">gmgn</a>`, {
+          reply_markup: { inline_keyboard: [[{ text: '⧉ Copy CA', copy_text: { text: c.addr } }]] },
+        });
+        console.log(`smtrack alert: ${c.chain} $${c.sym} ${c.makers.length} makers $${Math.round(c.usd)}`);
+      } catch (e) { console.error('smtrack send:', e.message); }
+    }
+  } catch (e) { console.error('smtrack cycle:', e.message); }
+}
+setTimeout(() => smTrackCycle(alertTarget()).catch(e => console.error('smtrack first:', e.message)), 66000);
+setInterval(() => smTrackCycle(alertTarget()).catch(e => console.error('smtrack cycle:', e.message)), 300000);
 pollLoop();
