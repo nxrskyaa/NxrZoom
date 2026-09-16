@@ -10,6 +10,8 @@ import { gmgnMap, gmgnGates, gmgnLines } from './gmgn.js';
 import { poolScan, poolCard } from './pool.js';
 import { lpScan, lpCard, lpGates } from './lpin.js';
 import { smTrackScan, smCard } from './smtrack.js';
+import { renderRecap, recordSignal, snapshotCycle } from './recap.js';
+import { cexAnomalies } from './cex.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -239,6 +241,7 @@ let lastResults = null, lastScanAt = 0;
 async function cycle(opts = {}) {
   const results = await scan(opts);
   lastResults = results; lastScanAt = Date.now();
+  snapshotCycle({ tracked: results.length, scored: results.filter(x => x.score).length });
   if (mutedUntil > Date.now() && !opts.ignoreCooldown) {
     return { results, sent: 0, muted: true };
   }
@@ -290,6 +293,8 @@ async function cycle(opts = {}) {
         continue;
       }
       await send(tgt.chat, fmtAlert(c, e, ta, g), { reply_markup: alertKeyboard(c.pair) });
+      recordSignal({ symbol: c.pair.baseToken.symbol, address: c.pair.baseToken.address, chain: c.pair.chainId, entry: c.pair.priceUsd, severity: c.score.severity, side: c.score.side });
+      hourlyAlerts++;
     } catch (e) { console.error('send failed:', e.message); }
   }
   // daily recap
@@ -382,14 +387,14 @@ async function handle(msg) {
   }
 
   if (/^\/recap/.test(text)) {
-    const m = await send(chatId, '📊 compiling…');
+    const m = await send(chatId, '📊 compiling hourly performance…');
     try {
       const results = await scan({ ignoreCooldown: true });
-      const rec = await buildRecap(results);
-      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: recapText(rec), parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
-    } catch (e) {
-      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
-    }
+      const [cex, rendered] = await Promise.all([cexAnomalies(), renderRecap({ results, cex, alerts: 0 })]);
+      await tg('deleteMessage', { chat_id: chatId, message_id: m.message_id }).catch(() => {});
+      const form = new FormData(); form.append('chat_id', String(chatId)); form.append('caption', '📊 <b>YUKAYA · PERFORMANCE RECAP</b>\nManual snapshot · current price vs alert entry'); form.append('parse_mode', 'HTML'); form.append('photo', new Blob([readFileSync(rendered.path)], { type: 'image/png' }), 'yukaya-recap.png');
+      await fetch(`${API}/sendPhoto`, { method: 'POST', body: form, signal: AbortSignal.timeout(30000) });
+    } catch (e) { await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` }); }
     return;
   }
 
@@ -643,4 +648,27 @@ async function lpCycle(tgt) {
 }
 setTimeout(() => lpCycle(alertTarget()).catch(e => console.error('lpin first:', e.message)), 81000);
 setInterval(() => lpCycle(alertTarget()).catch(e => console.error('lpin cycle:', e.message)), 300000);
+// hourly image recap: signal performance + CEX volume anomalies
+let lastHourlyRecap = 0;
+let hourlyAlerts = 0;
+async function hourlyRecap(tgt, force = false) {
+  const now = Date.now();
+  if (!force && now - lastHourlyRecap < 55 * 60000) return;
+  lastHourlyRecap = now;
+  try {
+    const count = hourlyAlerts; hourlyAlerts = 0;
+    const [cex, rendered] = await Promise.all([cexAnomalies(), renderRecap({ results: lastResults || [], cex, alerts: count })]);
+    const form = new FormData();
+    form.append('chat_id', String(tgt.chat));
+    if (tgt.thread) form.append('message_thread_id', String(tgt.thread));
+    form.append('caption', '📊 <b>YUKAYA · HOURLY RECAP</b>\nPerformance ledger + CEX volume anomaly scan', 'text/html');
+    form.append('parse_mode', 'HTML');
+    form.append('photo', new Blob([readFileSync(rendered.path)], { type: 'image/png' }), 'yukaya-hourly.png');
+    const r = await fetch(`${API}/sendPhoto`, { method: 'POST', body: form, signal: AbortSignal.timeout(30000) });
+    const d = await r.json(); if (!d.ok) throw new Error(d.description);
+    console.log(`hourly recap sent: ${rendered.performance.closed} tracked, pnl ${rendered.performance.pnl.toFixed(1)}%`);
+  } catch (e) { console.error('hourly recap:', e.message); }
+}
+setTimeout(() => hourlyRecap(alertTarget()).catch(e => console.error('hourly first:', e.message)), 90000);
+setInterval(() => hourlyRecap(alertTarget()).catch(e => console.error('hourly cycle:', e.message)), 3600000);
 pollLoop();
