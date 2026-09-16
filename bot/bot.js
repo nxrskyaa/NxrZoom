@@ -657,11 +657,12 @@ async function hourlyRecap(tgt, force = false) {
   lastHourlyRecap = now;
   try {
     const count = hourlyAlerts; hourlyAlerts = 0;
-    const [cex, rendered] = await Promise.all([cexAnomalies(), renderRecap({ results: lastResults || [], cex, alerts: count })]);
+    const cex = await cexAnomalies();
+    const rendered = await renderRecap({ results: lastResults || [], cex, alerts: count });
     const form = new FormData();
     form.append('chat_id', String(tgt.chat));
     if (tgt.thread) form.append('message_thread_id', String(tgt.thread));
-    form.append('caption', '📊 <b>YUKAYA · HOURLY RECAP</b>\nPerformance ledger + CEX volume anomaly scan', 'text/html');
+    form.append('caption', '📊 <b>YUKAYA · HOURLY RECAP</b>\nPerformance ledger + CEX volume anomaly scan');
     form.append('parse_mode', 'HTML');
     form.append('photo', new Blob([readFileSync(rendered.path)], { type: 'image/png' }), 'yukaya-hourly.png');
     const r = await fetch(`${API}/sendPhoto`, { method: 'POST', body: form, signal: AbortSignal.timeout(30000) });

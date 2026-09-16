@@ -46,5 +46,5 @@ if x['cex']:
  for r in x['cex'][:3]: txt('$'+str(r.get('symbol','?')).upper()+'  vol/mc '+str(round(r.get('ratio',0),2))+'x  24h '+str(round(r.get('chg24',0),1))+'%',(65,y),22); y+=35
 txt('Yukaya · NxrLabs', (960,850),18,(100,120,135))
 im.save(${JSON.stringify(IMG)})`;
- await new Promise((resolve,reject)=>execFile('python3',['-c',py],{timeout:30000},e=>e?reject(e):resolve())); return {path:IMG,performance:p};
+ await new Promise((resolve,reject)=>execFile('/home/ubuntu/.hermes/hermes-agent/venv/bin/python3',['-c',py],{timeout:30000},e=>e?reject(e):resolve())); return {path:IMG,performance:p};
 }
