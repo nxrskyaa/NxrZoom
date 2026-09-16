@@ -340,7 +340,7 @@ async function handle(msg) {
       '/scan — paksa scan sekarang',
       '/status — kondisi engine + target alerts',
       '/recap — rekap 24h',
-      '/arc — arc desk (saham + top tokens)',
+      '/arc — arc desk (saham + top tokens) · /arc sm — smart money ARC',
       '/sm — smartmoney flow sweep manual',
       '/rh — rh chain: meme×stock board + breakouts',
       '/setchannel — aktifkan auto-post ke channel',
@@ -392,6 +392,31 @@ async function handle(msg) {
   }
 
   if (/^\/arc/.test(text)) {
+    // /arc sm — leaderboard smart money ARC (curated list hasil PnL screening)
+    if (/^\/arc\s*sm/i.test(text)) {
+      const m = await send(chatId, '🧠 arc smart money — loading…');
+      try {
+        const db = JSON.parse(readFileSync(join(HERE, 'arc-smartmoney.json'), 'utf8'));
+        const w = (db.wallets || []).filter(x => (x.realized_30d || 0) >= 1000);
+        const L = (label, val) => (label + ' ').padEnd(9, ' ');
+        const fw = n => n >= 1e3 ? '$' + (n / 1e3).toFixed(1) + 'k' : '$' + Math.round(n);
+        const lines = [
+          'arc smart money · top PnL 30d',
+          '──────────────────────────',
+          ...w.slice(0, 12).map((x, i) =>
+            `${String(i + 1).padStart(2)}. ${x.addr.slice(0, 6)}…${x.addr.slice(-4)}  ${fw(x.realized_30d || 0).padStart(7)}  all ${fw(x.realized_all || 0)}${(x.tags || []).includes('wash_trader') ? ' ⚠️' : ''}`),
+          '',
+          `${w.length} wallets terverifikasi profit (gmgn PnL)`,
+          'deteksi beli bareng otomatis via smart flow',
+          'yukaya arc desk · ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }) + ' WITA',
+        ];
+        const kb = { inline_keyboard: [w.slice(0, 6).map(x => ({ text: x.addr.slice(0, 6) + '…' + x.addr.slice(-4), url: `https://arc-scan.org/address/${x.addr}` }))] };
+        await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `<pre>${lines.map(l => String(l).replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('\n')}</pre>`, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: kb });
+      } catch (e) {
+        await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
+      }
+      return;
+    }
     const m = await send(chatId, '🟠 arc desk — loading…');
     try {
       const r = await arcScan({ firstRun: true });

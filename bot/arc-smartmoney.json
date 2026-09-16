@@ -1,0 +1,27 @@
+{
+  "updated_at": "2026-09-16T02:40:00Z",
+  "source": "gmgn smart_degen + kol feed (chain=arc) → PnL verified via portfolio profits 30d/all",
+  "note": "curated ARC smart money wallets, ranked by 30d realized profit. Refresh: ulangi scrape + portfolio profits.",
+  "wallets": [
+    { "addr": "0xfe4b6a8d73042b5730b476ed118c6bd10b3f4ab4", "tags": ["smart_degen"], "realized_30d": 17846, "realized_all": 31519, "unrealized": 4940, "trades_all": 288, "focus": ["WARP"] },
+    { "addr": "0x59905d5d085e0caf031ba883b821ba354e51f95e", "tags": ["smart_degen"], "realized_30d": 16601, "realized_all": 18257, "unrealized": 2241, "trades_all": 439, "focus": ["CIRCLE"] },
+    { "addr": "0xd96304e38e6c71b7fb82d1ce47f6e4a804149f6a", "tags": ["smart_degen", "kol"], "realized_30d": 15823, "realized_all": 15343, "unrealized": 2171, "trades_all": 558, "focus": ["USDC", "samsrepx"] },
+    { "addr": "0x8874ababf03254439bf2b36bdb767fdc39700a61", "tags": ["smart_degen"], "realized_30d": 14105, "realized_all": 24587, "unrealized": 14014, "trades_all": 301, "focus": ["401K", "ACTOR", "AI", "ARC"] },
+    { "addr": "0x92a8d5ce2ecc201be0d707f4922ab6484bb50d61", "tags": ["smart_degen", "gmgn_go"], "realized_30d": 6601, "realized_all": 39655, "unrealized": -2046, "trades_all": 353, "focus": ["USDC"] },
+    { "addr": "0x371903abb32f5f69b536b77495e92adedfea25da", "tags": ["kol"], "realized_30d": 6520, "realized_all": 7228, "unrealized": 2108, "trades_all": null, "focus": [] },
+    { "addr": "0x2f5540fee80ca547b77c21fac3d4a4f613bf95d2", "tags": ["smart_degen"], "realized_30d": 3973, "realized_all": 14589, "unrealized": 2328, "trades_all": 590, "focus": ["ARCDOG", "BIRDIE", "MIM"] },
+    { "addr": "0xe28601398a5448d1147e6e8b0e0c6d686f0d216d", "tags": ["kol"], "realized_30d": 4640, "realized_all": 4686, "unrealized": 1111, "trades_all": null, "focus": [] },
+    { "addr": "0x61fd0d043d519f5a2bd05785000f30db96809429", "tags": ["kol"], "realized_30d": 4373, "realized_all": 4373, "unrealized": 1302, "trades_all": null, "focus": [] },
+    { "addr": "0x6666666ff51a37e20f999228fc282bea9211b668", "tags": ["smart_degen"], "realized_30d": 3629, "realized_all": 10199, "unrealized": 1371, "trades_all": 388, "focus": ["OPENADS"] },
+    { "addr": "0x347ffc6db9acc54ac2019795173b9599e8b82bd9", "tags": ["smart_degen", "kol", "wash_trader"], "realized_30d": 3188, "realized_all": 6133, "unrealized": -8, "trades_all": 1144, "focus": ["BOZO", "BUBBINS", "TYCOON"], "warning": "tag wash_trader — volume bisa fake" },
+    { "addr": "0x93585d7f5f15d8bc67f41a12d2b3e3966a1ee6a0", "tags": ["kol"], "realized_30d": 2633, "realized_all": 2633, "unrealized": 628, "trades_all": null, "focus": [] },
+    { "addr": "0x6afb06fc5a0dae2a86b96088338236d02f999999", "tags": ["kol"], "realized_30d": 2366, "realized_all": 2368, "unrealized": -536, "trades_all": null, "focus": [] },
+    { "addr": "0x9a983a5356bd37207ba8e6e33bd9be126f340a95", "tags": ["smart_degen"], "realized_30d": 2214, "realized_all": 2484, "unrealized": -49, "trades_all": 86, "focus": ["SIDEQUESTR"] },
+    { "addr": "0xda8d7219dec36a112a4ef7fd488781581d556536", "tags": ["smart_degen"], "realized_30d": 1857, "realized_all": 2241, "unrealized": 0, "trades_all": 404, "focus": ["BLONIE", "FCME", "OPENADS"] },
+    { "addr": "0xa64c6369c0d4c61aeee1f8997bcfb4022f2c614b", "tags": ["smart_degen"], "realized_30d": 1654, "realized_all": 2769, "unrealized": 933, "trades_all": 205, "focus": ["OPENADS"] },
+    { "addr": "0xca1a2fb7f3179d887504966b25d1606978adcd42", "tags": ["smart_degen", "kol"], "realized_30d": 1571, "realized_all": 2517, "unrealized": 824, "trades_all": 196, "focus": ["OPENADS"] },
+    { "addr": "0x10dc0417835bace30dd4afb05aa7590532a874e6", "tags": ["smart_degen"], "realized_30d": 1428, "realized_all": 3388, "unrealized": 211, "trades_all": 438, "focus": ["USDC"] },
+    { "addr": "0xdc6b9d500d26ac3dd43f783f4ada4d6c37205232", "tags": ["kol"], "realized_30d": 1149, "realized_all": 1236, "unrealized": 554, "trades_all": null, "focus": [] },
+    { "addr": "0x2e09261fa59e15a5317d6adfab1138be135fcdaa", "tags": ["smart_degen"], "realized_30d": 652, "realized_all": 3373, "unrealized": 3781, "trades_all": 285, "focus": ["ARCAT", "BULL", "SMOKE", "WARP"] }
+  ]
+}

@@ -14,11 +14,15 @@ try { state = JSON.parse(readFileSync(STATE_FILE, 'utf8')); } catch {}
 function saveState() { try { writeFileSync(STATE_FILE, JSON.stringify(state)); } catch {} }
 
 const CFG = {
-  chains: ['sol', 'robinhood'],
+  chains: ['sol', 'robinhood', 'arc'],
   clusterMakers: 2,      // ≥2 wallet smart beli bareng = alert
   clusterUsd: 2000,      // total beli ≥$2k
   cooldownH: 6,
   maxPerChain: 2,
+  // arc: pasar masih kecil (trade < $1k) — threshold longgar per-chain
+  perChain: {
+    arc: { clusterUsd: 500 },
+  },
 };
 const NATIVE = new Set([
   'so11111111111111111111111111111111111111112', // WSOL
@@ -26,6 +30,8 @@ const NATIVE = new Set([
   '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', '0x4200000000000000000000000000000000000006',
   '0x0000000000000000000000000000000000000000',
 ]);
+// token quote/pegged yang gak boleh dianggap "token buy" (arc settle pake USDC native)
+const QUOTE_SYMS = new Set(['usdc', 'usdt', 'weth', 'eth', 'warc']);
 
 const cli = (args) => new Promise((resolve) => {
   execFile('gmgn-cli', args, { timeout: 25000 }, (err, stdout) => {
@@ -78,6 +84,8 @@ export async function smTrackScan() {
       if ((t.side || '') !== 'buy') continue; // buys only buat cluster entry
       const addr = (t.base_address || '').toLowerCase();
       if (!addr || NATIVE.has(addr)) continue;
+      const baseSym = (t.base_token?.symbol || '').toLowerCase();
+      if (QUOTE_SYMS.has(baseSym)) continue;
       if (!agg.has(addr)) agg.set(addr, { addr, sym: t.base_token?.symbol || '?', chain, makers: new Set(), usd: 0, n: 0, lastTs: 0 });
       const a = agg.get(addr);
       a.makers.add((t.maker || '').toLowerCase());
@@ -87,8 +95,9 @@ export async function smTrackScan() {
     }
     // cuma trade fresh (≤90 menit) yang diitung cluster
     let sent = 0;
+    const th = { ...CFG, ...(CFG.perChain?.[chain] || {}) };
     const cands = [...agg.values()]
-      .filter(a => a.makers.size >= CFG.clusterMakers && a.usd >= CFG.clusterUsd && now / 1000 - a.lastTs < 5400)
+      .filter(a => a.makers.size >= th.clusterMakers && a.usd >= th.clusterUsd && now / 1000 - a.lastTs < 5400)
       .sort((x, y) => (y.makers.size - x.makers.size) || (y.usd - x.usd));
     for (const c of cands) {
       if (sent >= CFG.maxPerChain) break;
