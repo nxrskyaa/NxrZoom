@@ -8,6 +8,7 @@ import { rhmapScan, screenMemes, memeCard, boardCard as rhBoardCard } from './rh
 import { taRead, taReadGmgn } from './ta.js';
 import { gmgnMap, gmgnGates, gmgnLines } from './gmgn.js';
 import { poolScan, poolCard } from './pool.js';
+import { lpScan, lpCard, lpGates } from './lpin.js';
 import { smTrackScan, smCard } from './smtrack.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
@@ -342,6 +343,7 @@ async function handle(msg) {
       '/recap — rekap 24h',
       '/arc — arc desk (saham + top tokens) · /arc sm — smart money ARC',
       '/sm — smartmoney flow sweep manual',
+      '/lp — lp desk: kandidat LP-in (vol5m ≥ $150k, vol/tvl ≥ 2.5x)',
       '/rh — rh chain: meme×stock board + breakouts',
       '/setchannel — aktifkan auto-post ke channel',
       '/mute 3 — diam 3 jam',
@@ -435,6 +437,20 @@ async function handle(msg) {
       const txt = r.alerts.length
         ? r.alerts.map(a => `🧠 <b>SMART FLOW</b> · ${a.sym}\n\n${smartCard(a)}`).join('\n\n')
         : '🧠 smart flow — <b>bersih</b>\n\n<i>gak ada aktivitas watch wallets di window ini</i>';
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: txt, parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    } catch (e) {
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
+    }
+    return;
+  }
+
+  if (/^\/lp\b/.test(text)) {
+    const m = await send(chatId, '💧 lp desk — sweep…');
+    try {
+      const alerts = await lpScan();
+      const txt = alerts.length
+        ? alerts.map(t => `💧 <b>LP INCOMING</b> · ${t.chain.toUpperCase()}\n\n${lpCard(t)}`).join('\n\n')
+        : '💧 lp desk — <b>bersih</b>\n\n<i>gak ada kandidat vol 5m ≥ $150k dengan vol/tvl ≥ 2.5x di window ini</i>';
       await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: txt, parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
     } catch (e) {
       await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
@@ -608,4 +624,23 @@ async function smTrackCycle(tgt) {
 }
 setTimeout(() => smTrackCycle(alertTarget()).catch(e => console.error('smtrack first:', e.message)), 66000);
 setInterval(() => smTrackCycle(alertTarget()).catch(e => console.error('smtrack cycle:', e.message)), 300000);
+// lp desk cycle: deteksi potensi LP-in (vol 5m gedé, TVL tipis) tiap 5 menit
+async function lpCycle(tgt) {
+  try {
+    const alerts = await lpScan();
+    for (const t of alerts) {
+      try {
+        await send(tgt.chat, `💧 <b>LP INCOMING</b> · NxrLabs\n\n${lpCard(t)}`, {
+          reply_markup: { inline_keyboard: [[
+            { text: '⧉ Copy CA', copy_text: { text: t.addr } },
+            { text: 'gmgn', url: t.gmgnUrl },
+          ]] },
+        });
+        console.log(`lpin alert: ${t.chain} $${t.sym} vol/tvl ${t.ratio.toFixed(1)}x vol5m $${Math.round(t.vol5m)}`);
+      } catch (e) { console.error('lpin send:', e.message); }
+    }
+  } catch (e) { console.error('lpin cycle:', e.message); }
+}
+setTimeout(() => lpCycle(alertTarget()).catch(e => console.error('lpin first:', e.message)), 81000);
+setInterval(() => lpCycle(alertTarget()).catch(e => console.error('lpin cycle:', e.message)), 300000);
 pollLoop();
