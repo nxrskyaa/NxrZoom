@@ -8,7 +8,7 @@ import { rhmapScan, screenMemes, memeCard, boardCard as rhBoardCard } from './rh
 import { taRead, taReadGmgn } from './ta.js';
 import { gmgnMap, gmgnGates, gmgnLines } from './gmgn.js';
 import { poolScan, poolCard } from './pool.js';
-import { lpScan, lpCard, lpGates } from './lpin.js';
+import { lpScan, lpWatch, lpCard, lpGates } from './lpin.js';
 import { smTrackScan, smCard } from './smtrack.js';
 import { renderRecap, recordSignal, snapshotCycle } from './recap.js';
 import { cexAnomalies } from './cex.js';
@@ -450,16 +450,18 @@ async function handle(msg) {
   }
 
   if (/^\/lp\b/.test(text)) {
-    const m = await send(chatId, '💧 lp desk — sweep…');
+    const m = await send(chatId, '💧 lp desk — watchlist sweep…');
     try {
-      const alerts = await lpScan();
-      const txt = alerts.length
-        ? alerts.map(t => `💧 <b>LP INCOMING</b> · ${t.chain.toUpperCase()}\n\n${lpCard(t)}`).join('\n\n')
-        : '💧 lp desk — <b>bersih</b>\n\n<i>gak ada kandidat vol 5m ≥ $150k dengan vol/tvl ≥ 2.5x di window ini</i>';
-      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: txt, parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
-    } catch (e) {
-      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` });
-    }
+      const rows = await lpWatch();
+      const lines = ['💧 <b>YUKAYA LP DESK</b>', '<i>watchlist: vol 5m ≥ $150k · auto-alert hanya yang lolos gate</i>', ''];
+      if (!rows.length) lines.push('Tidak ada token di feed 5m saat ini.');
+      for (const t of rows.slice(0, 6)) {
+        const status = t.gateReasons.length ? '⚠️ ' + t.gateReasons[0] : '✅ ALERTABLE';
+        lines.push(`<b>$${esc(t.sym)}</b> · ${t.chain.toUpperCase()} · vol $${fmtShort(t.vol5m)} · TVL $${fmtShort(t.liq)} · <b>${t.ratio.toFixed(1)}x</b>\n${esc(status)}`);
+      }
+      lines.push('', '<i>vol/tvl ≥2.5x · TVL ≥$10k · bundler ≤30% · top10 ≤65%</i>');
+      await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: lines.join('\n'), parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    } catch (e) { await tg('editMessageText', { chat_id: chatId, message_id: m.message_id, text: `❌ ${esc(e.message)}` }); }
     return;
   }
 

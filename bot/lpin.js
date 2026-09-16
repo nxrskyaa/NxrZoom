@@ -108,6 +108,14 @@ export function lpCard(t) {
   return `<pre>${lines.map(x => esc(x)).join('\n')}</pre>`;
 }
 
+export async function lpWatch() {
+  const all = [];
+  for (const chain of CFG.chains) {
+    try { all.push(...(await scanChain(chain)).map(t => ({ ...t, gateReasons: lpGates(t) }))); } catch (e) { console.error(`lpin watch ${chain}:`, e.message); }
+  }
+  return all.sort((a,b) => (b.vol5m - a.vol5m)).slice(0, 12);
+}
+
 // full cycle — balikin alert LP-in yang lolos gate
 export async function lpScan() {
   const now = Date.now();

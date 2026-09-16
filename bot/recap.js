@@ -31,12 +31,18 @@ def font(n,b=False):
  except:return ImageFont.load_default()
 def txt(s,xy,size=25,col=(225,232,240),b=False): d.text(xy,s,font=font(size,b),fill=col)
 txt('YUKAYA  ·  HOURLY PERFORMANCE', (55,42),34,(120,220,180),True); txt(x['date']+' WITA', (58,88),20,(145,160,175))
-d.line((55,130,1145,130),fill=(44,62,78),width=2)
-p=x['pnl']; txt('SIGNAL PERFORMANCE', (58,160),22,(145,160,175),True)
-txt('Alerts this hour  '+str(x['alerts']), (60,205),28); txt('Tracked signals  '+str(p['signals']), (380,205),28); txt('Win rate  '+(str(round(p['winrate']))+'%' if p['closed'] else '—'), (700,205),28,(120,220,180))
-txt('Paper PnL  '+(('+' if p['pnl']>=0 else '')+str(round(p['pnl'],1))+'%'), (60,250),38,(120,220,180) if p['pnl']>=0 else (255,115,115),True)
-txt('method: current price vs alert entry · not realized PnL', (60,300),18,(145,160,175))
-d.line((55,335,1145,335),fill=(44,62,78),width=2)
+p=x['pnl']
+d.line((55,130,1145,130),fill=(42,70,82),width=2)
+# premium metric cards
+for box in [(55,150,345,285),(365,150,655,285),(675,150,945,285),(965,150,1145,285)]: d.rounded_rectangle(box,radius=18,fill=(18,27,36),outline=(38,62,73),width=2)
+txt('SIGNAL PERFORMANCE', (58,165),18,(145,160,175),True)
+txt('ALERTS', (78,205),15,(100,145,155),True); txt(str(x['alerts']), (78,228),36,(225,232,240),True)
+txt('TRACKED', (388,205),15,(100,145,155),True); txt(str(p['signals']), (388,228),36,(225,232,240),True)
+txt('WIN RATE', (698,205),15,(100,145,155),True); txt((str(round(p['winrate']))+'%' if p['closed'] else '—'), (698,228),36,(120,220,180),True)
+txt('PAPER PNL', (988,205),15,(100,145,155),True); txt((('+' if p['pnl']>=0 else '')+str(round(p['pnl'],1))+'%'), (988,228),28,(120,220,180) if p['pnl']>=0 else (255,115,115),True)
+txt('mark-to-market · alert entry → current price', (58,310),17,(145,160,175))
+d.line((55,340,1145,340),fill=(42,70,82),width=2)
+p=x['pnl']
 txt('TOP TRACKED SIGNALS', (58,365),22,(145,160,175),True)
 y=410
 for r in x['top']:
